@@ -49,8 +49,24 @@ services:
     build: ./backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://lexicon:lexicon@postgres:5432/lexicon}
+      # Runtime role — ADR-0002 restricts this to INSERT/SELECT on
+      # QUERY_LOG/RETRIEVED_CHUNK/CITATION_VERDICT. Created by migration
+      # 0002 (which runs as DATABASE_ADMIN_URL below), so this URL only
+      # works after `alembic upgrade head` has completed — see Dockerfile.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${APP_DB_ROLE:-lexicon_app}:${APP_DB_PASSWORD:-lexicon_app_dev_only}@postgres:5432/lexicon}
+      # Migration/admin role — full DDL/DML, including the UPDATE/DELETE on
+      # audit tables the runtime role above is deliberately denied.
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:-postgresql+psycopg://${POSTGRES_USER:-lexicon}:${POSTGRES_PASSWORD:-lexicon}@postgres:5432/lexicon}
+      APP_DB_ROLE: ${APP_DB_ROLE:-lexicon_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-lexicon_app_dev_only}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      # LLM provider (ADR-0001/ADR-0003) — unset in this environment as of
+      # Session 4 (docs/project-memory/12-session-handoff.md). Absence is
+      # the deliberate signal llm/factory.py uses to select the stub tier,
+      # not a boot-time failure.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GENERATION_MODEL: ${GENERATION_MODEL:-claude-sonnet-5}
+      VERIFICATION_MODEL: ${VERIFICATION_MODEL:-claude-haiku-4-5}
     ports:
       - "8010:8000"
     depends_on:

@@ -13,6 +13,31 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # pytest needs a real Postgres+pgvector instance — the ADR-0002 grant-
+    # assertion test and the NFR-001 recall regression test are both
+    # written to be honest against real infrastructure, not a mock
+    # (12-session-handoff.md's Session 4 ground rule). Migration 0002
+    # creates the restricted app role itself, so only the admin/superuser
+    # role needs provisioning here.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: lexicon
+          POSTGRES_PASSWORD: lexicon
+          POSTGRES_DB: lexicon
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U lexicon -d lexicon"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_ADMIN_URL: postgresql+psycopg://lexicon:lexicon@localhost:5433/lexicon
+      DATABASE_URL: postgresql+psycopg://lexicon_app:lexicon_app_dev_only@localhost:5433/lexicon
+      APP_DB_ROLE: lexicon_app
+      APP_DB_PASSWORD: lexicon_app_dev_only
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +58,9 @@ jobs:
 
       - name: bandit
         run: bandit -r src
+
+      - name: alembic upgrade head
+        run: alembic upgrade head
 
       - name: pytest
         run: pytest -q

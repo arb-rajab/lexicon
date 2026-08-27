@@ -1,7 +1,7 @@
 [project]
 name = "lexicon-backend"
 version = "0.0.1"
-description = "lexicon backend — grounded document Q&A API (Session 0 skeleton, no feature code yet)"
+description = "lexicon backend — grounded document Q&A API (Session 4: ingestion, hybrid retrieval, generate/verify pipeline)"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
@@ -12,6 +12,10 @@ dependencies = [
     "alembic>=1.13",
     "psycopg[binary]>=3.2",
     "redis>=5.0",
+    "pgvector>=0.3",
+    "fastembed>=0.4",
+    "anthropic>=1.0",
+    "python-multipart>=0.0.12",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +42,11 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection pattern requires Depends(...)/Query(...) as
+# an argument default — the idiomatic form, not a mutable-default footgun.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
 [tool.mypy]
 python_version = "3.12"
