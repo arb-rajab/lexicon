@@ -273,6 +273,22 @@ returns raw embedding vectors or an unrestricted similarity-search surface
 that non-goal), this finding must be re-run against the new surface before
 shipping it, not assumed to still hold.
 
+**Why the RBAC scoping specifically closes this threat, and the precise
+boundary condition under which that stops being true:** the finding above
+is not "the endpoint is access-controlled" in the abstract — it is that
+the *specific* role granted access to `fusion_score`/rank data (corpus
+owner) is the same role that already has direct, legitimate plaintext
+access to the underlying document content, so the scores disclose no
+information that role doesn't already have; RBAC here isn't reducing
+exposure, it's confirming exposure was never actually new for that role.
+This reasoning holds only as long as no lower-privileged role — a future
+analytics, monitoring, or reporting role is the obvious candidate — is
+ever granted access to this endpoint without *also* being granted
+plaintext document access; if one is, the two grants are no longer
+coupled, this finding's entire basis no longer applies, and the threat
+must be re-evaluated from scratch rather than assumed still closed on the
+strength of this session's reasoning.
+
 ## Audit trail tamper-evidence
 
 **The Session 2 question, quoted verbatim from `04-data-model.md`'s
@@ -444,6 +460,7 @@ controls:
 | Document content honesty (a corpus owner uploading factually false but non-instructional content) is out of scope — this system defends against injected *instructions*, not against a corpus owner choosing to include false *facts* | The product's grounding promise is "the answer is supported by what's in the corpus," not "what's in the corpus is true" — the same reasoning `02-requirements.md`'s data classification already applies ("if an operator's corpus contains [sensitive/inaccurate content], that operator's own governance obligations apply") | If the product's stated promise to end users ever implies factual accuracy of source content, not merely grounding in it — a scope change, not a security gap, if it happens |
 | Provider-side data exposure (T-09) — retrieved passage content is necessarily sent to a third-party LLM API for both calls | Inherent to any RAG architecture; provider choice (`03-architecture.md`) is the only app-layer lever available, and was already made on stated grounds | If a provider incident report ever surfaces evidence of cross-tenant prompt/data leakage |
 | Instance-level authentication mechanics remain undesigned (T-12, carried forward from Session 2) | Deliberately deferred as an operator/deployment concern per the MVP boundary (`01-scope-and-non-goals.md`); this session adds requirements (T-04, T-12) on the eventual mechanism rather than inventing one prematurely | Must be resolved before Session 4 implements any endpoint that depends on it, and definitely before any multi-corpus-per-instance production deployment, since T-04's cross-corpus authorisation check has nothing to enforce without it |
+| The embedding-inversion finding (T-08) that RBAC scoping closes this threat depends on the corpus-owner role's access to `fusion_score`/rank data staying coupled to that same role's plaintext document access | The finding's entire basis is that this role gains no *new* information from the scores it doesn't already have from the documents themselves — not that access control alone is sufficient in general | If a lower-privileged role (e.g. a future analytics, monitoring, or reporting role) is ever granted access to the query-log detail endpoint without also being granted plaintext document access, the two grants are no longer coupled and this threat must be re-evaluated from scratch, not assumed still closed |
 
 ## Responsible disclosure
 
