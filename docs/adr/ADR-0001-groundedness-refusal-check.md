@@ -211,6 +211,16 @@ quality improvement.**
   unrelated negative controls) when measuring refusal recall — a harness
   that only tests obviously-unrelated queries would not actually validate
   that this mechanism solves the problem it was built for.
+- The verifier's own accuracy is unproven — this ADR commits to the
+  mechanism's existence and shape, not to evidence that it works. When
+  Session 5 builds the evaluation harness, its FIRST required test case
+  must be the exact failure mode this ADR exists to prevent: feed the
+  verifier a wrong-but-topically-adjacent claim (ideally reusing Session
+  1's actual 0.701-scoring OAuth2/JWT case, or an equivalent) and confirm
+  it correctly flags the claim as NOT grounded — not merely confirming the
+  happy path where a genuinely correct, well-supported claim passes. This
+  is the same standard as privacy-forge's audit-log tamper test: simulate
+  the actual attack, don't just assert the mechanism "should" work.
 - Provider/model choice (`03-architecture.md`) is shaped by this decision:
   the verification call is a bounded, narrow classification-style task
   (does this text support this claim, yes/no) and does not need the same
