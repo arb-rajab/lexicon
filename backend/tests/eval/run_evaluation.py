@@ -42,6 +42,7 @@ from lexicon.pipeline.query_pipeline import QueryPipelineResult, run_query_pipel
 from lexicon.retrieval.service import RetrievedChunkContext, hybrid_retrieve
 from tests.eval import metrics
 from tests.eval.golden_dataset import GOLDEN_DATASET, GoldenCase
+from tests.support.tier_caveat import render_tier_caveat
 
 # Recall@k uses top_n=3 to match the existing NFR-001 baseline convention
 # (tests/test_ingestion_and_retrieval.py) so this number is directly
@@ -89,46 +90,6 @@ CITATION_ACCURACY_THRESHOLD = 7 / 10
 _BANNER = "=" * 78
 
 
-def _tier_caveat(tier: str) -> str:
-    if tier == "stub":
-        return (
-            f"{_BANNER}\n"
-            "TIER: stub  (StubLLMClient — llm/stub_client.py's keyword-overlap\n"
-            "             heuristic, NOT entailment reasoning)\n"
-            f"{_BANNER}\n"
-            "*** THE NUMBERS BELOW DESCRIBE StubLLMClient's DETERMINISTIC        ***\n"
-            "*** BEHAVIOR. THEY ARE NOT A MEASUREMENT OF REAL MODEL QUALITY.     ***\n"
-            "\n"
-            "Per docs/adr/ADR-0004-real-llm-verification-descoped.md: no real LLM\n"
-            "provider credential exists in this project's current lifecycle, by\n"
-            "deliberate, permanent choice. What this run DOES prove: the\n"
-            "evaluation methodology (golden dataset, recall@k, refusal-\n"
-            "correctness, citation-accuracy scoring) executes for real against the\n"
-            "real pipeline and produces a real, reproducible, regression-gated\n"
-            "number for a known, documented heuristic. What it does NOT prove:\n"
-            "that a real model's entailment reasoning would make the same calls\n"
-            "on the adjacent-but-wrong cases below — that is this project's\n"
-            "central, original differentiating claim, and it is permanently\n"
-            "unprovable in this environment (ADR-0004). If ANTHROPIC_API_KEY is\n"
-            "ever set, this exact script produces real-tier evidence with ZERO\n"
-            "code changes — see this module's own \"THE SWAP POINT\" docstring.\n"
-            f"{_BANNER}\n"
-        )
-    return (
-        f"{_BANNER}\n"
-        "TIER: real  (AnthropicLLMClient — a live model call)\n"
-        f"{_BANNER}\n"
-        "*** ADR-0004's premise (no real credential exists) no longer holds in  ***\n"
-        "*** this environment. The numbers below ARE real evidence about       ***\n"
-        "*** verification/generation quality — every prior recorded run in     ***\n"
-        "*** this project's history was stub-tier only; do not compare across  ***\n"
-        "*** tiers as if they measured the same thing. Formally revisit        ***\n"
-        "*** ADR-0004 (its own Revisit triggers) before treating this as       ***\n"
-        "*** settled going forward.                                           ***\n"
-        f"{_BANNER}\n"
-    )
-
-
 @dataclass
 class EvaluationReport:
     tier: str
@@ -146,7 +107,7 @@ class EvaluationReport:
 
     def render(self) -> str:
         lines = [
-            _tier_caveat(self.tier),
+            render_tier_caveat(self.tier),
             "Session 5 evaluation harness — lexicon (docs/adr/ADR-0004)",
             f"Golden dataset: {len(GOLDEN_DATASET)} cases "
             f"({self.recall.total} legitimate, "

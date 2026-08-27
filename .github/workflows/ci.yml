@@ -73,6 +73,15 @@ jobs:
         # visible in this job's logs, not only on failure.
         run: python -m tests.eval.run_evaluation
 
+      - name: Session 6 adversarial injection corpus (ADR-0003 enforcement + stub-tier self-check)
+        # Same pattern as the Session 5 step above: test_adversarial_corpus.py
+        # already gates this via `pytest -q`; run it a second time here,
+        # unpiped, so both the hard application-layer enforcement invariant
+        # and the stub-tier self-check caveat are always visible in this
+        # job's logs. See tests/security/run_adversarial_evaluation.py's
+        # module docstring for the precise claim/non-claim split.
+        run: python -m tests.security.run_adversarial_evaluation
+
       - name: pip-audit
         run: pip-audit
 

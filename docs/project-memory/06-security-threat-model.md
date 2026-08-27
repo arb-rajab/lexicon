@@ -187,11 +187,22 @@ twice.
 
 ### The committed adversarial test corpus
 
-Both threats require a **committed, adversarial test corpus** (Session
-4/5, `docs/security/adversarial-corpus/` or equivalent), analogous in
-spirit to how `privacy-forge`'s threat model scoped adversarial testing
-for its own domain — "simulate the actual attack, don't just assert the
-mechanism 'should' work" (ADR-0001's own words, this project). Design:
+**Status: built, Session 6** (`docs/security/adversarial-corpus/`,
+18 cases, CI-gated via `backend/tests/security/`) — Session 4/5 named this
+corpus's design; Session 5 explicitly left the build itself open
+(`docs/project-memory/12-session-handoff.md`'s Session 5 entry); Session 6
+built it. Read `docs/security/adversarial-corpus/README.md` for the exact
+measured results and, critically, the precise split between what this
+corpus proves with zero slack at any tier (application-layer enforcement,
+ADR-0003 item 3, and structural delimiting, items 1-2 — both real code
+properties) and what it can never prove against `StubLLMClient`
+(whether a real model's own injection_suspected judgment would catch a
+novel phrasing or distinguish genuine discussion of injection from an
+actual attempt — ADR-0004's permanent gap). The design below is the
+original Session 4/5 design this corpus was built against, analogous in
+spirit to how `privacy-forge`'s threat model scoped adversarial testing for
+its own domain — "simulate the actual attack, don't just assert the
+mechanism 'should' work" (ADR-0001's own words, this project):
 
 - **Category 1 — direct override attempts:** "ignore all previous
   instructions," fake system/role markers, fake conversation turns.
@@ -218,7 +229,15 @@ the committed suite"), generator- and verifier-targeted cases evaluated as
 pass/fail number, so a verifier-specific regression cannot be masked by
 generator-suite passes), and an explicit, tracked false-positive rate on
 Category 4 rather than an unmeasured assumption that the defenses are
-side-effect-free.
+side-effect-free. **As actually implemented against a permanent stub tier
+(Session 6, ADR-0004):** "zero successful injections" is honestly provable
+only as "zero application-layer enforcement failures" (a code property,
+checked against real database rows, zero slack) — not as "the detection
+heuristic never misses an attack," which `StubLLMClient`'s hardcoded
+ten-marker substring list demonstrably does on any phrasing outside that
+list. The corpus and harness report both numbers, separately and by name,
+specifically so this distinction survives into every future reading of a
+"PASS" result — see `docs/security/adversarial-corpus/README.md`.
 
 ## Embedding inversion / information leakage
 
@@ -456,7 +475,7 @@ controls:
 | Risk | Reason accepted | Revisit trigger |
 |---|---|---|
 | Audit trail is not resistant to a fully-privileged/insider database actor holding the migration-level credential itself (ADR-0002 residual limit, T-07) | No named external evidentiary driver exists in this project's own discovery/requirements documents to justify hash-chaining's cost; the realistic threat (application-layer/compromised-app-credential tampering) is addressed by DB-level grant restriction at far lower cost | If `lexicon` is ever deployed for an operator with a real external evidentiary requirement, or an actual undetected tampering incident occurs — see ADR-0002's own revisit triggers |
-| `injection_suspected` (ADR-0003) has an unmeasured false-negative rate — a sufficiently subtle verifier-hijack attempt may not be recognised as an attempt at all | The alternative (pre-ingestion content filtering) is rejected as unreliable and prone to corrupting legitimate document content (Option B, ADR-0003); fail-closed-on-ambiguity and the adversarial test suite are the accepted second and third layers rather than a claim that detection alone is sufficient | If the Session 5 adversarial suite measures a persistent, real gap in T-02 defense, per ADR-0003's own revisit trigger |
+| `injection_suspected`'s false-negative rate is now measured for `StubLLMClient` specifically (Session 6: 4/14 attack cases missed — phrasings deliberately chosen to avoid its ten hardcoded markers) and remains permanently unmeasured for any real model (ADR-0004) | The alternative (pre-ingestion content filtering) is rejected as unreliable and prone to corrupting legitimate document content (Option B, ADR-0003); fail-closed-on-ambiguity and the enforced auto-fail override (ADR-0003 item 3, now verified 0 violations across Session 6's corpus, any tier) are the accepted second and third layers rather than a claim that detection alone is sufficient — a missed detection means no defense-in-depth signal fired, not that the pipeline answered anyway | Session 6's stub-tier result is an expected, already-documented limitation of the placeholder heuristic (ADR-0003's own Trade-offs section), not the "documented, measured result" of a real-model gap ADR-0003's revisit trigger names — that trigger remains open, gated on a real model, per ADR-0004 |
 | Document content honesty (a corpus owner uploading factually false but non-instructional content) is out of scope — this system defends against injected *instructions*, not against a corpus owner choosing to include false *facts* | The product's grounding promise is "the answer is supported by what's in the corpus," not "what's in the corpus is true" — the same reasoning `02-requirements.md`'s data classification already applies ("if an operator's corpus contains [sensitive/inaccurate content], that operator's own governance obligations apply") | If the product's stated promise to end users ever implies factual accuracy of source content, not merely grounding in it — a scope change, not a security gap, if it happens |
 | Provider-side data exposure (T-09) — retrieved passage content is necessarily sent to a third-party LLM API for both calls | Inherent to any RAG architecture; provider choice (`03-architecture.md`) is the only app-layer lever available, and was already made on stated grounds | If a provider incident report ever surfaces evidence of cross-tenant prompt/data leakage |
 | Instance-level authentication mechanics remain undesigned (T-12, carried forward from Session 2) | Deliberately deferred as an operator/deployment concern per the MVP boundary (`01-scope-and-non-goals.md`); this session adds requirements (T-04, T-12) on the eventual mechanism rather than inventing one prematurely | Must be resolved before Session 4 implements any endpoint that depends on it, and definitely before any multi-corpus-per-instance production deployment, since T-04's cross-corpus authorisation check has nothing to enforce without it |
