@@ -65,6 +65,14 @@ jobs:
       - name: pytest
         run: pytest -q
 
+      - name: Session 5 evaluation harness (golden dataset, stub-tier methodology proof)
+        # Same DB/tier as the pytest step above (test_evaluation_harness.py
+        # already gates this via `pytest -q`) — run a second time here,
+        # unpiped, so the harness's own stub-tier-vs-real-quality caveat
+        # (docs/adr/ADR-0004-real-llm-verification-descoped.md) is always
+        # visible in this job's logs, not only on failure.
+        run: python -m tests.eval.run_evaluation
+
       - name: pip-audit
         run: pip-audit
 
