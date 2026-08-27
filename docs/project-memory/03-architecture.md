@@ -325,3 +325,14 @@ means:
 - Recorded here, in the architecture doc itself and in the session
   handoff, specifically so it cannot resurface as a surprise blocker
   partway through Session 4 the way it reportedly did in `bookslot`.
+
+**Superseded, Session 4.5:** this open item is now permanently closed as
+"will not provision," not merely deferred — see
+`docs/adr/ADR-0004-real-llm-verification-descoped.md`. Session 4 did in
+fact begin and complete the query-path work described above without a
+real key, against `StubLLMClient`; the project owner has since decided no
+real key will be sought at all, for portfolio/skill-proof reasons. The
+consequence for this repository is stated at full severity in ADR-0004,
+not merely as a cost-estimation gap: it is not just NFR-007's real dollar
+figure that stays unset, but this project's central verification claim
+that becomes permanently unprovable.

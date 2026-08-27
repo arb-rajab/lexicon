@@ -149,30 +149,63 @@ the spike already produced a number, it is quoted; where it did not
 (generation and security don't exist yet), the metric and methodology are
 defined without a fabricated current value.
 
+**Amended, Session 4.5 (2026-08-27):** the project owner has permanently
+declined to obtain a real LLM provider credential for this project
+(`docs/adr/ADR-0004-real-llm-verification-descoped.md`). Metrics #2, #3,
+and #5 below depend on real generation or verification behavior and can
+therefore only ever be measured against `StubLLMClient`'s known,
+deterministic heuristic — not against real model quality — for this
+project's current lifecycle. Each is annotated below with what it can and
+cannot actually claim. Metric #1 does not depend on an LLM call at all and
+is unaffected.
+
 1. **Retrieval recall@3**, measured by the CI-gated evaluation harness
    (Session 5, Verification & Testing) against a golden query set on a
    realistic-scale corpus (target: 500+ chunks across 20+ documents — large
    enough that 3-guesses-out-of-N stops being a low bar, unlike this
    spike's 9-document corpus). *Spike baseline, honestly caveated as an easy
    corpus:* 100% recall@3 for OR-semantics keyword, vector-only, and hybrid;
-   0% for AND-semantics keyword.
+   0% for AND-semantics keyword. **Unaffected by ADR-0004** — retrieval
+   never calls an LLM provider, so this remains a real, fully measurable
+   metric at realistic scale.
 2. **Refusal recall** — of a labeled set of queries with no true answer in
    the corpus, the fraction the system correctly refuses. Per Finding 2,
    this set must include *topically-adjacent-but-absent* queries, not only
    fully-unrelated ones — the spike showed the fully-unrelated case (0.515
    similarity) is the easy case and the adjacent case (0.701 similarity) is
-   the one that actually tests the refusal mechanism.
+   the one that actually tests the refusal mechanism. **Permanently
+   measurable only as a stub-tier self-check, per ADR-0004**: Session 5 can
+   confirm the harness correctly scores `StubLLMClient`'s known
+   keyword-overlap heuristic against this query set, which proves the
+   harness works — it cannot and will not produce a real refusal-recall
+   number, because that requires observing a real model's entailment
+   judgment, which this project has no credential to obtain.
 3. **Citation accuracy** — of the answers the system does give (not
    refused), the fraction where a human reviewer confirms the cited passage
    actually supports the stated answer, on a spot-checked labeled sample.
-   This is the literal, checkable test of "citation-backed."
+   This is the literal, checkable test of "citation-backed." **Permanently
+   measurable only as a stub-tier self-check, per ADR-0004**, for the same
+   reason as metric #2 — the answers being reviewed would be
+   `StubLLMClient` output, not real generation.
 4. **End-to-end query latency (p95)** — not yet measurable; no generation
    step exists. A concrete budget is set once Session 2's architecture
-   fixes the generation model and infra, not invented here.
+   fixes the generation model and infra, not invented here. **Note added,
+   ADR-0004:** even once measurable, latency measured against
+   `StubLLMClient` (in-process, no network round trip) will not be
+   representative of real provider latency and must not be reported as if
+   it were — this metric has no path to a real value in this project's
+   current lifecycle either.
 5. **Prompt-injection resistance** — pass rate on the adversarial
    prompt-injection test suite committed at the Verification & Testing deep
    phase (Session 5). Target: zero successful injections in the committed
    suite. Not yet measurable; no generation surface exists to attack yet.
+   **Permanently measurable only as a stub-tier self-check, per ADR-0004**:
+   the adversarial corpus itself (attack categories, generator- and
+   verifier-targeted cases) is real, valuable work that Session 5 will
+   still produce, but running it against `StubLLMClient` tests whether the
+   *harness* correctly detects the stub's scripted responses — it does not
+   and cannot test whether a real model actually resists an injection
+   attempt, which is the metric's actual point.
 
 ## MVP boundary
 

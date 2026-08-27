@@ -35,11 +35,15 @@ so far, including this session's.** This is not a boot-time failure:
 signal and returns `StubLLMClient` instead of `AnthropicLLMClient` — the
 application starts and serves the full ingest/retrieve/generate/verify
 pipeline either way, against whichever tier is configured. Setting a real
-key and restarting the `backend` service is the entire migration path to
-the real tier; no code change is required. See
-`docs/project-memory/12-session-handoff.md` (Session 4) for why this
-absence is flagged as an urgent, cheap-to-clear blocker rather than a
-permanent design choice, unlike the stub tier itself, which stays.
+key and restarting the `backend` service remains the technical migration
+path to the real tier, should that ever happen; no code change would be
+required. **Superseded, Session 4.5:** this absence is no longer a
+temporary blocker awaiting a credential — the project owner has
+permanently declined to obtain one, by deliberate portfolio-scope choice.
+See `docs/adr/ADR-0004-real-llm-verification-descoped.md` for the full
+decision and `docs/project-memory/12-session-handoff.md` for its
+consequences. `StubLLMClient` is now this project's permanent evaluation
+substrate, not a stand-in awaiting Session 5.
 
 ## Observability: logs, metrics, traces, health checks
 ## Dashboards and alerts (each links a runbook)
