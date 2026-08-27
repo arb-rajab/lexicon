@@ -1,0 +1,684 @@
+{
+  "num_chunks": 108,
+  "num_scoreable_queries": 9,
+  "recall_at_3": {
+    "keyword_and": 0.0,
+    "keyword_or": 1.0,
+    "vector": 1.0,
+    "hybrid": 1.0
+  },
+  "queries": [
+    {
+      "query": "What class do I import to add CORS support in FastAPI?",
+      "kind": "keyword-friendly",
+      "expected_source": "cors.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.0594
+        },
+        {
+          "source": "middleware.md",
+          "heading": "Create a middleware { #create-a-middleware }",
+          "score": 0.0442
+        },
+        {
+          "source": "background-tasks.md",
+          "heading": "Technical Details { #technical-details }",
+          "score": 0.0372
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.8396
+        },
+        {
+          "source": "cors.md",
+          "heading": "More info { #more-info }",
+          "score": 0.8123
+        },
+        {
+          "source": "sql-databases.md",
+          "heading": "Run the App { #run-the-app }",
+          "score": 0.7424
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.0328
+        },
+        {
+          "source": "middleware.md",
+          "heading": "Create a middleware { #create-a-middleware }",
+          "score": 0.0161
+        },
+        {
+          "source": "cors.md",
+          "heading": "More info { #more-info }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.8396
+    },
+    {
+      "query": "How do I allow cookies to be sent on cross-origin requests?",
+      "kind": "keyword-friendly",
+      "expected_source": "cors.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.0752
+        },
+        {
+          "source": "cors.md",
+          "heading": "Steps { #steps }",
+          "score": 0.0355
+        },
+        {
+          "source": "middleware.md",
+          "heading": "Create a middleware { #create-a-middleware }",
+          "score": 0.0347
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.772
+        },
+        {
+          "source": "cors.md",
+          "heading": "CORS preflight requests { #cors-preflight-requests }",
+          "score": 0.7391
+        },
+        {
+          "source": "cors.md",
+          "heading": "More info { #more-info }",
+          "score": 0.7375
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.0328
+        },
+        {
+          "source": "cors.md",
+          "heading": "Steps { #steps }",
+          "score": 0.0161
+        },
+        {
+          "source": "cors.md",
+          "heading": "CORS preflight requests { #cors-preflight-requests }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.772
+    },
+    {
+      "query": "How can I run some code after already sending the response back to the client?",
+      "kind": "semantic-paraphrase",
+      "expected_source": "background-tasks.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "background-tasks.md",
+          "heading": "Background Tasks { #background-tasks }",
+          "score": 0.0406
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Try it { #try-it }",
+          "score": 0.04
+        },
+        {
+          "source": "middleware.md",
+          "heading": "Middleware { #middleware }",
+          "score": 0.0365
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "middleware.md",
+          "heading": "Before and after the `response` { #before-and-after-the-response }",
+          "score": 0.7533
+        },
+        {
+          "source": "background-tasks.md",
+          "heading": "Background Tasks { #background-tasks }",
+          "score": 0.7465
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Handling disconnections and multiple clients { #handling-disconnections-and-multiple-clients }",
+          "score": 0.6925
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "background-tasks.md",
+          "heading": "Background Tasks { #background-tasks }",
+          "score": 0.0325
+        },
+        {
+          "source": "middleware.md",
+          "heading": "Before and after the `response` { #before-and-after-the-response }",
+          "score": 0.0164
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Try it { #try-it }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.7533
+    },
+    {
+      "query": "How do I make sure a database session gets closed after each request?",
+      "kind": "semantic-paraphrase",
+      "expected_source": "sql-databases.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "sql-databases.md",
+          "heading": "Create an Engine { #create-an-engine }",
+          "score": 0.0487
+        },
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.0328
+        },
+        {
+          "source": "sql-databases.md",
+          "heading": "Create a Session Dependency { #create-a-session-dependency }",
+          "score": 0.0314
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "sql-databases.md",
+          "heading": "Create a Session Dependency { #create-a-session-dependency }",
+          "score": 0.7066
+        },
+        {
+          "source": "sql-databases.md",
+          "heading": "Create an Engine { #create-an-engine }",
+          "score": 0.7027
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Handling disconnections and multiple clients { #handling-disconnections-and-multiple-clients }",
+          "score": 0.6732
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "sql-databases.md",
+          "heading": "Create an Engine { #create-an-engine }",
+          "score": 0.0325
+        },
+        {
+          "source": "sql-databases.md",
+          "heading": "Create a Session Dependency { #create-a-session-dependency }",
+          "score": 0.0323
+        },
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.7066
+    },
+    {
+      "query": "How do I check a plaintext password against a stored hash at login?",
+      "kind": "semantic-paraphrase",
+      "expected_source": "oauth2-jwt.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Hash and verify the passwords { #hash-and-verify-the-passwords }",
+          "score": 0.0511
+        },
+        {
+          "source": "sql-databases.md",
+          "heading": "Create Multiple Models { #create-multiple-models }",
+          "score": 0.0366
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Install `pwdlib` { #install-pwdlib }",
+          "score": 0.0355
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Hash and verify the passwords { #hash-and-verify-the-passwords }",
+          "score": 0.7328
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Check it { #check-it }",
+          "score": 0.7296
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Install `pwdlib` { #install-pwdlib }",
+          "score": 0.7193
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Hash and verify the passwords { #hash-and-verify-the-passwords }",
+          "score": 0.0328
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Install `pwdlib` { #install-pwdlib }",
+          "score": 0.0317
+        },
+        {
+          "source": "sql-databases.md",
+          "heading": "Create Multiple Models { #create-multiple-models }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.7328
+    },
+    {
+      "query": "How do I broadcast a message to every client connected over a socket?",
+      "kind": "semantic-paraphrase",
+      "expected_source": "websockets.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "websockets.md",
+          "heading": "Handling disconnections and multiple clients { #handling-disconnections-and-multiple-clients }",
+          "score": 0.0493
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Try it { #try-it }",
+          "score": 0.0228
+        },
+        {
+          "source": "background-tasks.md",
+          "heading": "Background Tasks { #background-tasks }",
+          "score": 0.0203
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "websockets.md",
+          "heading": "Handling disconnections and multiple clients { #handling-disconnections-and-multiple-clients }",
+          "score": 0.7456
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Install `websockets` { #install-websockets }",
+          "score": 0.7045
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Try it { #try-it }",
+          "score": 0.6997
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "websockets.md",
+          "heading": "Handling disconnections and multiple clients { #handling-disconnections-and-multiple-clients }",
+          "score": 0.0328
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Try it { #try-it }",
+          "score": 0.032
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Install `websockets` { #install-websockets }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.7456
+    },
+    {
+      "query": "What's the recommended base image for containerizing a FastAPI app?",
+      "kind": "keyword-friendly",
+      "expected_source": "docker.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "docker.md",
+          "heading": "(6)!",
+          "score": 0.0467
+        },
+        {
+          "source": "docker.md",
+          "heading": "Base Docker Image { #base-docker-image }",
+          "score": 0.0424
+        },
+        {
+          "source": "docker.md",
+          "heading": "\u26d4\ufe0f Don't do this",
+          "score": 0.039
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "docker.md",
+          "heading": "Build the Docker Image { #build-the-docker-image }",
+          "score": 0.8475
+        },
+        {
+          "source": "docker.md",
+          "heading": "FastAPI in Containers - Docker { #fastapi-in-containers-docker }",
+          "score": 0.8309
+        },
+        {
+          "source": "docker.md",
+          "heading": "Build a Docker Image for FastAPI { #build-a-docker-image-for-fastapi }",
+          "score": 0.8098
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "docker.md",
+          "heading": "(6)!",
+          "score": 0.0164
+        },
+        {
+          "source": "docker.md",
+          "heading": "Build the Docker Image { #build-the-docker-image }",
+          "score": 0.0164
+        },
+        {
+          "source": "docker.md",
+          "heading": "Base Docker Image { #base-docker-image }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.8475
+    },
+    {
+      "query": "How do I share one dependency function across several different path operations?",
+      "kind": "semantic-paraphrase",
+      "expected_source": "dependencies.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "dependencies.md",
+          "heading": "Declare the dependency, in the \"dependant\" { #declare-the-dependency-in-the-dependant }",
+          "score": 0.0535
+        },
+        {
+          "source": "dependencies.md",
+          "heading": "What is \"Dependency Injection\" { #what-is-dependency-injection }",
+          "score": 0.0383
+        },
+        {
+          "source": "dependencies.md",
+          "heading": "Simple usage { #simple-usage }",
+          "score": 0.0383
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "dependencies.md",
+          "heading": "To `async` or not to `async` { #to-async-or-not-to-async }",
+          "score": 0.7675
+        },
+        {
+          "source": "dependencies.md",
+          "heading": "Declare the dependency, in the \"dependant\" { #declare-the-dependency-in-the-dependant }",
+          "score": 0.7478
+        },
+        {
+          "source": "dependencies.md",
+          "heading": "Simple usage { #simple-usage }",
+          "score": 0.7453
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "dependencies.md",
+          "heading": "Declare the dependency, in the \"dependant\" { #declare-the-dependency-in-the-dependant }",
+          "score": 0.0325
+        },
+        {
+          "source": "dependencies.md",
+          "heading": "Simple usage { #simple-usage }",
+          "score": 0.0317
+        },
+        {
+          "source": "dependencies.md",
+          "heading": "To `async` or not to `async` { #to-async-or-not-to-async }",
+          "score": 0.0164
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.7675
+    },
+    {
+      "query": "How do I add a custom header to every single HTTP response my app sends?",
+      "kind": "semantic-paraphrase",
+      "expected_source": "middleware.md",
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "middleware.md",
+          "heading": "Create a middleware { #create-a-middleware }",
+          "score": 0.0396
+        },
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.0356
+        },
+        {
+          "source": "middleware.md",
+          "heading": "Before and after the `response` { #before-and-after-the-response }",
+          "score": 0.0304
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "middleware.md",
+          "heading": "Create a middleware { #create-a-middleware }",
+          "score": 0.7147
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Using `Depends` and others { #using-depends-and-others }",
+          "score": 0.6951
+        },
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.6852
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "middleware.md",
+          "heading": "Create a middleware { #create-a-middleware }",
+          "score": 0.0328
+        },
+        {
+          "source": "cors.md",
+          "heading": "Use `CORSMiddleware` { #use-corsmiddleware }",
+          "score": 0.032
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Using `Depends` and others { #using-depends-and-others }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": false,
+      "keyword_or_hit": true,
+      "vector_hit": true,
+      "hybrid_hit": true,
+      "top_vector_similarity": 0.7147
+    },
+    {
+      "query": "How do I set up 'Sign in with Google' as an OAuth2 identity provider?",
+      "kind": "adjacent-but-absent",
+      "expected_source": null,
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Recap { #recap }",
+          "score": 0.0474
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Handle JWT tokens { #handle-jwt-tokens }",
+          "score": 0.0228
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Advanced usage with `scopes` { #advanced-usage-with-scopes }",
+          "score": 0.0228
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Check it { #check-it }",
+          "score": 0.7008
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Recap { #recap }",
+          "score": 0.6815
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Advanced usage with `scopes` { #advanced-usage-with-scopes }",
+          "score": 0.6655
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Recap { #recap }",
+          "score": 0.0325
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Advanced usage with `scopes` { #advanced-usage-with-scopes }",
+          "score": 0.0317
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Check it { #check-it }",
+          "score": 0.0164
+        }
+      ],
+      "keyword_and_hit": null,
+      "keyword_or_hit": null,
+      "vector_hit": null,
+      "hybrid_hit": null,
+      "top_vector_similarity": 0.7008
+    },
+    {
+      "query": "What is the boiling point of tungsten?",
+      "kind": "out-of-corpus",
+      "expected_source": null,
+      "keyword_and_top3": [],
+      "keyword_or_top3": [
+        {
+          "source": "docker.md",
+          "heading": "(1)!",
+          "score": 0.0203
+        }
+      ],
+      "vector_top3": [
+        {
+          "source": "websockets.md",
+          "heading": "Install `websockets` { #install-websockets }",
+          "score": 0.5147
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Handle JWT tokens { #handle-jwt-tokens }",
+          "score": 0.5107
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Try the WebSockets with dependencies { #try-the-websockets-with-dependencies }",
+          "score": 0.499
+        }
+      ],
+      "hybrid_top3": [
+        {
+          "source": "docker.md",
+          "heading": "(1)!",
+          "score": 0.0164
+        },
+        {
+          "source": "websockets.md",
+          "heading": "Install `websockets` { #install-websockets }",
+          "score": 0.0164
+        },
+        {
+          "source": "oauth2-jwt.md",
+          "heading": "Handle JWT tokens { #handle-jwt-tokens }",
+          "score": 0.0161
+        }
+      ],
+      "keyword_and_hit": null,
+      "keyword_or_hit": null,
+      "vector_hit": null,
+      "hybrid_hit": null,
+      "top_vector_similarity": 0.5147
+    }
+  ]
+}

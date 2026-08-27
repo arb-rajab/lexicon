@@ -1,7 +1,9 @@
 # lexicon
 
-> **Status:** 🚧 Session 0 complete — governance and repository skeleton only.
-> No feature code yet. See [`docs/project-memory/12-session-handoff.md`](docs/project-memory/12-session-handoff.md)
+> **Status:** 🚧 Session 1 complete — discovery and planning only, validated
+> against a real feasibility spike. No application feature code yet (the
+> spike script is throwaway, not part of the app). See
+> [`docs/project-memory/12-session-handoff.md`](docs/project-memory/12-session-handoff.md)
 > for current state and next steps.
 
 A grounded document Q&A system: every answer is citation-backed against the
@@ -25,7 +27,8 @@ pgvector · Redis · S3-compatible storage (MinIO).
 ## Project status
 
 This repository is built through a session-based workflow. Current phase:
-**Session 0 (Governance) — complete.** Next: Session 1 (Discovery).
+**Session 1 (Discovery & Planning) — complete.** Next: Session 2
+(Requirements & Architecture).
 
 Full portfolio context: this is a flagship repository in a broader
 public/private software portfolio. See `docs/project-memory/` for the
@@ -44,8 +47,9 @@ fill in later:
 - Not an LLM gateway product.
 - No autonomous action-taking.
 
-A full non-goals table with rationale and reconsideration conditions is
-produced in Session 1 — see `docs/project-memory/01-scope-and-non-goals.md`.
+The full non-goals table, with rationale and reconsideration conditions for
+each row (including two new ones this session's analysis surfaced) is in
+[`docs/project-memory/01-scope-and-non-goals.md`](docs/project-memory/01-scope-and-non-goals.md).
 
 ## Quickstart
 
