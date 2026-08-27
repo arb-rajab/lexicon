@@ -1,8 +1,8 @@
 # lexicon
 
-> **Status:** 🚧 Session 1 complete — discovery and planning only, validated
-> against a real feasibility spike. No application feature code yet (the
-> spike script is throwaway, not part of the app). See
+> **Status:** 🚧 Session 2 complete — requirements and architecture, including
+> the first ADR (the refusal mechanism, designed directly against Session
+> 1's measured spike findings). No application feature code yet. See
 > [`docs/project-memory/12-session-handoff.md`](docs/project-memory/12-session-handoff.md)
 > for current state and next steps.
 
@@ -27,8 +27,7 @@ pgvector · Redis · S3-compatible storage (MinIO).
 ## Project status
 
 This repository is built through a session-based workflow. Current phase:
-**Session 1 (Discovery & Planning) — complete.** Next: Session 2
-(Requirements & Architecture).
+**Session 2 (Requirements & Architecture) — complete.** Next: Session 3.
 
 Full portfolio context: this is a flagship repository in a broader
 public/private software portfolio. See `docs/project-memory/` for the

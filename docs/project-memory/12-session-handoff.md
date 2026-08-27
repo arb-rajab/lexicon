@@ -7,269 +7,329 @@
 - Current version or branch: `main` (unreleased, pre-v0.1.0)
 
 ## Session completed
-- Session number and title: **Session 1 — Discovery & Planning**
-- Objective: Produce the deep-phase Discovery evidence — validate the
-  problem and users with real reasoning, the explicit "why RAG, not
-  fine-tuning or search alone" comparison with a failure-cost analysis, and
-  a feasibility spike proving hybrid retrieval works on a sample corpus.
+- Session number and title: **Session 2 — Requirements & Architecture**
+- Objective: Turn Session 1's validated discovery into concrete
+  functional/non-functional requirements and a real system architecture —
+  specifically resolving the two firm inputs Session 1 produced: (1) hybrid
+  retrieval must use OR-semantics keyword search, and (2) the refusal
+  mechanism needs an explicit groundedness/entailment check design, not a
+  similarity threshold. Flagged explicitly as one of the most important
+  design decisions this repository will make.
 - Status: **complete**
 
 ## Work completed
-- Rewrote `00-project-brief.md` in full (no "draft"/"stub" markers): a real
-  problem statement (who has this problem, why a general chatbot / pure
-  keyword search / fine-tuning each fall short for this specific need),
-  stakeholders, business assumptions (stated honestly as unvalidated
-  hypotheses — this is a portfolio project with no live user base), a
-  concrete "cost of a wrong answer" section grounded in specific scenarios
-  (a hallucinated API default causing a production incident; a wrong
-  retention-policy answer causing an illegal data deletion; a hallucinated
-  "still supported" deprecated auth flag), and 5 success metrics — quoting
-  the spike's real numbers where they exist, and stating methodology
-  without a fabricated number where they don't (latency, prompt-injection
-  resistance — neither has a generation surface to measure yet).
-- Wrote `00b-rag-vs-alternatives.md`: a genuine options-considered
-  comparison (keyword-only / fine-tuning / hybrid RAG) in this portfolio's
-  ADR rigor (Context / Options considered / Decision / Trade-offs /
-  Consequences / Revisit triggers), deliberately placed outside
-  `docs/adr/` and left unnumbered because `00a-ledger-confirmation.md`
-  records that formal ADRs begin at Session 3 — this file exists so
-  Session 3 can reference it rather than re-litigate the comparison.
-  Fine-tuning is rejected on cost-of-staying-current and
-  structural-non-citability grounds, not on the pre-existing README
-  non-goal alone (the reasoning and the governance rule independently
-  agree). Hybrid (not vector-only) is chosen because vector embeddings are
-  structurally weaker on exact-token lookups (error codes, config keys) —
-  a gap this spike's corpus happened not to test, stated honestly as a
-  revisit trigger rather than hidden.
-- **Ran a real, executed feasibility spike** —
-  `docs/spikes/session1-hybrid-retrieval/` — against a real, licence-clean
-  corpus (8 pages of official FastAPI documentation, MIT-licensed, fetched
-  from `tiangolo/fastapi`, `docs/en/docs/` tree; provenance and licence
-  rationale recorded in `corpus/LICENCE-NOTE.md`), using the project's
-  actual planned infrastructure (`pgvector/pgvector:pg17` + `python:3.12-slim`
-  in Docker, matching how Session 0 already runs things on this
-  no-local-Python machine). 108 chunks across 9 documents; 11 hand-written
-  test queries (9 scoreable + 2 negative controls), written before looking
-  at retrieval output.
-  - **Finding 1 (mediocre, reported honestly, not hidden):** naive
-    AND-semantics Postgres full-text search (`plainto_tsquery`) scored
-    **0/9 (0%) recall@3** — it requires every content word of a natural
-    question to co-occur in one chunk, which ordinary phrasing rarely
-    satisfies. Switching to OR semantics fixed it completely (0% → 100%).
-    This is now a concrete implementation constraint for Session 2+: the
-    AND variant must not ship.
-  - **Finding 2 (the important one):** a topically-adjacent-but-wrong query
-    ("Sign in with Google" against a corpus that only documents
-    password-flow JWT auth) scored a top vector similarity of **0.701** —
-    inside the 0.706–0.848 range of the nine genuinely correct retrievals
-    in the same run — while a fully-unrelated query (tungsten's boiling
-    point) was cleanly separable at 0.515. **Retrieval-similarity-only
-    refusal is proven unsafe by this measurement**, not merely suspected:
-    it would confidently hand a wrong-but-related passage to generation.
-    Recorded as a fixed architectural input for Session 2+'s refusal
-    design (an explicit groundedness/entailment check is required) and as
-    a new non-goal ("similarity-threshold-only refusal") in
-    `01-scope-and-non-goals.md`.
-  - Also recorded honestly what the spike does **not** prove: retrieval
-    quality at realistic corpus scale (9 documents is a low bar for
-    recall@3), and hybrid's expected advantage over vector-only on
-    exact-token queries (this corpus didn't happen to test that case).
-- Wrote `01-scope-and-non-goals.md` in full: a checkable MVP boundary
-  (8 items, all unchecked — nothing is built yet, Session 1 is discovery),
-  and a non-goals table expanding the README's permanent-boundaries
-  preview into full reasoning + reconsideration conditions, plus **two new
-  non-goals this session's analysis surfaced**: "retrieval-quality
-  guarantees on unbounded/very-large corpora without harness evidence at
-  that scale" (the spike's own corpus-size caveat, formalised) and
-  "similarity-threshold-only refusal" (Finding 2, formalised).
-- Updated `README.md`: status banner (Session 0 → Session 1 complete),
-  project-status line, and the non-goals section's pointer (now points to
-  a produced table, not a future promise).
-- Updated `docs/SDLC-EVIDENCE.md`'s Phase 1 (Discovery & Planning) row with
-  real evidence citations, replacing "not yet produced."
-- Docker resources used for the spike (a `pgvector/pgvector:pg17` container
-  and a bridge network) were torn down after the run; nothing was left
-  running. The spike's local pip/HF cache directory was also deleted —
-  only the corpus, script, requirements, and results/report are committed.
+- **Wrote `docs/adr/ADR-0001-groundedness-refusal-check.md`** — this
+  repository's first ADR, and the centerpiece deliverable of this session.
+  Designed directly against Session 1's spike Finding 2 (cited by exact
+  numbers in the ADR's Context section: a topically-adjacent-but-wrong query
+  scored 0.701 top similarity, inside the 0.706–0.848 range of genuinely
+  correct retrievals in the same run), not as a generic "add safety checks"
+  deferral. Considered three real options with stated trade-offs:
+  (A) cross-encoder reranking — rejected as the *primary* mechanism because
+  it still answers "is this topically relevant," the same question
+  similarity already answers, not "does this passage support this specific
+  claim"; (B) pre-generation LLM-as-judge gating — rejected because without
+  a candidate answer to check against, the judge is vulnerable to the same
+  topical-adjacency trap; (C, **chosen**) post-generation
+  groundedness/entailment verification — generation is conditioned on
+  retrieved passages with mandatory chunk-scoped citations and a
+  self-refusal instruction, followed by an **independent** LLM call
+  (different model, blind to the generator's own reasoning) that checks
+  each cited claim against its exact passage text before the answer is
+  released. Reranking (A) is retained as a secondary, non-decisive
+  retrieval-quality improvement, not as a stand-in for verification.
+  Real trade-offs stated and accepted: two LLM calls per answered query
+  instead of one (cost, latency), and the verification step's own accuracy
+  is unmeasured until Session 5's evaluation harness — not claimed as
+  solved by this ADR alone.
+- **Wrote `docs/project-memory/02-requirements.md`** in full, matching
+  `privacy-forge`'s `02-requirements.md` rigor: a roles/permissions note
+  (this product has no multi-role auth model in v1, stated explicitly
+  rather than a padded fake matrix), 5 user stories with Given/When/Then
+  acceptance criteria across ingestion, querying, refusal, and audit flows,
+  14 functional requirements traceable to the MVP boundary
+  (`01-scope-and-non-goals.md`), 10 non-functional requirements — where the
+  spike provides real numbers they're used (NFR-001, a 100% recall@3
+  regression floor on the actual spike corpus); where it doesn't, the
+  target is explicitly marked "not set here — no fabricated number" with a
+  named owner (NFR-002–004 retrieval/refusal/citation quality at scale →
+  Session 5's harness; NFR-007 per-query cost budget → Session 4's real
+  pricing) rather than inventing a plausible-looking figure — and a full
+  data-classification table covering document content, chunk embeddings
+  (explicitly flagged as carrying source-content-level sensitivity via
+  embedding-inversion risk, not "just numbers"), query text, generated
+  answers, and query logs.
+- **Wrote `docs/project-memory/03-architecture.md`** in full, with the
+  refusal-mechanism decision (ADR-0001) as its explicit centerpiece — the
+  Key Flows section's "ask a question" sequence diagram is the direct
+  architectural expression of the ADR (two independent refusal entry
+  points: generator self-refusal, and verification failure; an answer is
+  never shown to the user without passing the independent verification
+  call). Also covers: the ingestion pipeline (upload → object storage →
+  queued chunking/embedding → incremental per-document re-index, keeping
+  the "cheap freshness" claim against fine-tuning real rather than
+  aspirational); the hybrid-retrieval architecture fixed as OR-semantics
+  keyword + vector + RRF fusion (Session 1's spike, now the production
+  design rather than a re-litigated question); fail-closed failure handling
+  (an LLM provider outage during generation or verification never falls
+  back to an unverified or similarity-only answer); and LLM provider fit —
+  **decision: Anthropic Claude API**, with a stated reason (native prompt
+  caching directly reduces the repeated-passage cost this two-call pipeline
+  incurs) and a model-tier asymmetry for cost control (mid/high tier for
+  open-ended generation, small/fast tier for the narrow per-claim
+  entailment check in verification — the asymmetry is what keeps "two calls
+  instead of one" from doubling cost outright). System context and
+  container diagrams in Mermaid, matching this portfolio's established
+  C4Context/C4Container convention (`privacy-forge`'s `03-architecture.md`).
+- **Checked this environment directly and confirmed no LLM API credentials
+  exist** (no `ANTHROPIC_API_KEY` or equivalent) — recorded as an explicit
+  open item in `03-architecture.md`'s own section, not left to surface as a
+  surprise mid-Session-4 the way Stripe credentials reportedly were
+  discovered mid-build in a prior portfolio project. Stated as **not** a
+  blocker for this session (no live API calls are needed to write
+  requirements/architecture) but as a concrete action item that must be
+  resolved before Session 4 (Implementation) can begin the query-path work.
+- **Wrote `docs/project-memory/04-data-model.md`** in full: ERD (Mermaid)
+  covering `CORPUS`/`DOCUMENT`/`CHUNK`/`QUERY_LOG`/`RETRIEVED_CHUNK`/
+  `CITATION_VERDICT`; the entity design makes the refusal gate's audit
+  trail concrete (`CITATION_VERDICT` is literally the per-claim entailment
+  verdict ADR-0001 requires, not an abstract "logging" placeholder);
+  invariants section documents that `QUERY_LOG.final_answered` is enforced
+  at the application layer (not a DB constraint, since verification is a
+  multi-call process a `CHECK` constraint can't observe) and names this as
+  a known single point of failure for the whole invariant, deliberately not
+  hand-waved; an honest revisit-trigger note that, unlike `privacy-forge`'s
+  hash-chained audit log (ADR-0003), this design is append-only-by-
+  convention only, pending the not-yet-written security/threat-model
+  session's judgment on whether tamper-evidence is actually required here.
+- **Wrote `docs/project-memory/05-api-contracts.md`** in full: REST/JSON
+  under `/api/v1/`, with the query endpoint's response schema directly
+  reflecting the three-way refusal reason (`self_refused` /
+  `verification_failed` / `no_candidates_retrieved`) so a corpus owner can
+  distinguish "nothing relevant was found" from "something was found but
+  didn't verify"; explicit error-model rule that a provider-call failure
+  (`502`) is never represented as a successful refusal response, so an
+  operational failure can't be mistaken for the refusal mechanism working
+  correctly.
+- Updated `docs/SDLC-EVIDENCE.md`'s Requirements Analysis and Architecture &
+  Design rows with real evidence citations, replacing "Not yet produced."
+- Updated `README.md`'s status banner and project-status line (Session 1 →
+  Session 2 complete).
+- No implementation code was touched — `backend/` and `frontend/` are
+  unchanged from Session 0, per this session's ground rules.
+- `privacy-forge`, `laravel-consent-guard`, and `bookslot` were not touched.
 
 ## Files created or changed
-- `docs/project-memory/00-project-brief.md` — rewritten in full, no draft
-  markers remaining.
-- `docs/project-memory/00b-rag-vs-alternatives.md` — new: the
-  options-considered RAG-vs-alternatives comparison.
-- `docs/project-memory/01-scope-and-non-goals.md` — written in full (was an
-  empty template).
-- `docs/spikes/session1-hybrid-retrieval/` — new: `spike.py`,
-  `requirements.txt`, `RESULTS.md`, `results.json` (raw output),
-  `corpus/*.md` (8 files) + `corpus/LICENCE-NOTE.md`.
-- `README.md` — status banner, project-status line, non-goals pointer.
-- `docs/SDLC-EVIDENCE.md` — Phase 1 row updated with real evidence
-  citations.
+- `docs/adr/ADR-0001-groundedness-refusal-check.md` — new: this
+  repository's first ADR, the refusal-mechanism decision.
+- `docs/project-memory/02-requirements.md` — written in full (was an empty
+  template).
+- `docs/project-memory/03-architecture.md` — written in full (was an empty
+  template).
+- `docs/project-memory/04-data-model.md` — written in full (was an empty
+  template).
+- `docs/project-memory/05-api-contracts.md` — written in full (was an empty
+  template).
+- `docs/SDLC-EVIDENCE.md` — Requirements Analysis and Architecture & Design
+  rows updated with real evidence citations.
+- `README.md` — status banner, project-status line.
 - `docs/project-memory/12-session-handoff.md` — this file.
 
 ## Decisions made
-- **RAG (hybrid retrieval + grounded generation), not fine-tuning or
-  keyword-only search** — full reasoning in `00b-rag-vs-alternatives.md`.
-  This is this repository's central Discovery-phase decision per
-  `00a-ledger-confirmation.md` and is now backed by both comparative
-  reasoning and a real measurement, not asserted.
-- **Hybrid keyword search must use OR semantics, not Postgres's default
-  AND semantics (`plainto_tsquery`)** — measured, not a style preference.
-  Recorded as an MVP-boundary requirement in `01-scope-and-non-goals.md`.
-- **Retrieval-confidence thresholding alone is ruled out as the refusal
-  mechanism** — an explicit groundedness/entailment check is required.
-  This is now a fixed input to Session 2+'s architecture, not an open
-  design question to relitigate.
-- **`00b-rag-vs-alternatives.md` is deliberately not a numbered ADR under
-  `docs/adr/`** — `00a-ledger-confirmation.md` records that formal ADRs
-  begin at Session 3 (architecture); this session's decision is Discovery
-  reasoning, written at ADR rigor, but not in the ADR sequence. Session 3
-  should reference it, not renumber or duplicate it.
-- Embedding model for the spike (`BAAI/bge-small-en-v1.5` via `fastembed`/
-  ONNX) was chosen to avoid a torch dependency in a throwaway script — this
-  is **not** a production model decision; Session 3's architecture is free
-  to choose differently.
+- **Refusal mechanism is post-generation groundedness/entailment
+  verification, run as an independent LLM call, not a retrieval-similarity
+  threshold, not reranking alone, and not a pre-generation relevance
+  gate** — `docs/adr/ADR-0001-groundedness-refusal-check.md`. This is this
+  session's central decision and the one flagged as most important; it is
+  now a fixed architectural input, not an open question.
+- **LLM provider: Anthropic Claude API**, with model-tier asymmetry
+  (mid/high tier for generation, small/fast tier for verification) as the
+  primary cost-control lever — `03-architecture.md`. Specific model IDs are
+  deliberately not pinned (a Session 4 configuration decision against
+  whatever the current lineup is then), to avoid this document going stale.
+- **Hybrid retrieval architecture (OR-semantics keyword + vector + RRF) is
+  fixed as the production design**, not re-derived — carried forward from
+  Session 1's spike per the handoff's stated input.
+- **No numeric target is invented for retrieval quality at scale, refusal
+  recall, citation accuracy, or per-query cost** (`02-requirements.md`
+  NFR-002–004, NFR-007) — each is explicitly marked as pending real
+  evidence (Session 5's harness or Session 4's real provider pricing)
+  rather than filled with a plausible-sounding guess.
+- **Instance-level authentication/authorisation is explicitly deferred as
+  an operator/deployment concern**, not designed this session — the two
+  functional roles this product itself distinguishes (corpus owner,
+  knowledge worker) are recorded, but login/session mechanics are not
+  invented ahead of `08-deployment-and-operations.md`.
 
 ## Validation performed
-- The spike was executed for real inside Docker (`pgvector/pgvector:pg17`
-  + `python:3.12-slim`), against a real downloaded corpus, with real
-  queries run against real Postgres full-text search and pgvector indexes
-  — not simulated or hand-computed. Full command transcript and honest
-  results (including the 0% AND-semantics keyword result) are in
-  `docs/spikes/session1-hybrid-retrieval/RESULTS.md` and `results.json`.
-- Corpus provenance and licence were checked and recorded before use
-  (`corpus/LICENCE-NOTE.md`) — MIT-licensed FastAPI documentation, fetched
-  from the upstream repository, attribution and source URLs recorded.
-- No application code was touched this session — `backend/` and
-  `frontend/` are unchanged from Session 0. `privacy-forge`,
-  `laravel-consent-guard`, and `bookslot` were not touched.
-- Docker spike resources were torn down after the run (`docker rm -f`,
-  `docker network rm`) — verified nothing was left running.
+- No application code exists yet for this session's deliverables to be
+  tested against — this session's own "definition of done" is that the
+  documents are written and reasoned, not templated, which was checked by
+  re-reading each document against `01-scope-and-non-goals.md`'s MVP
+  boundary and `00-project-brief.md`'s success metrics for traceability
+  (every FR maps to a user story; every "not yet built" claim in the spike
+  is respected rather than quietly overstated).
+- Confirmed directly (not assumed) that no LLM API credentials exist in
+  this environment before writing the architecture doc's open-item section,
+  so the claim is a checked fact, not a guess.
+- Confirmed `backend/` and `frontend/` are unchanged from Session 0 (no
+  implementation this session, per ground rules).
 
 ## Open questions and risks
-- **Risk carried forward from Session 0, now partially informed:** the RAG
-  evaluation methodology learning objective's actual difficulty is now
-  somewhat de-risked by this spike (the mechanics of hybrid retrieval +
-  recall measurement are proven tractable), but a CI-gated, golden-dataset
-  harness at realistic corpus scale is still unbuilt — Session 5's actual
-  lift is not yet known.
-- **New risk, from Finding 2:** the refusal mechanism now has a firm
-  requirement (groundedness/entailment check, not a similarity threshold)
-  but no design yet — this is real, not hypothetical, scope for Session 2's
-  architecture (`03-architecture.md`) and should not be underestimated as
-  "just add a threshold."
-- **New risk, from Finding 1:** any future contributor's instinct to reach
-  for Postgres's default `plainto_tsquery` will silently reintroduce the
-  0%-recall failure mode measured this session. Worth a code comment or
-  lint-level guard at implementation time, not just a memory-pack note.
-- **No blockers.** Session 2 can start immediately.
+- **Carried forward from Session 1, still open:** any future contributor's
+  instinct to reach for Postgres's default `plainto_tsquery` will silently
+  reintroduce the 0%-recall failure mode — FR-005 states the requirement in
+  writing now, but no code-level guard (lint rule, wrapped query-builder
+  function that doesn't expose the AND path) exists yet. Worth building at
+  Session 4 (Implementation), not deferred indefinitely.
+- **New risk, from this session:** ADR-0001's verification step is a real,
+  concrete design, but its actual accuracy (false-accept and false-refuse
+  rates) is completely unmeasured — the ADR states this honestly rather
+  than claiming the refusal problem is solved. Session 5's evaluation
+  harness must treat this as a first-class thing to measure, specifically
+  using the adjacent-but-wrong query class Finding 2 surfaced, not only
+  fully-unrelated negative controls — if the harness only tests the easy
+  case, it will not actually validate the mechanism this session designed.
+- **New risk, from this session:** `04-data-model.md`'s
+  `QUERY_LOG.final_answered` gate is enforced at the application layer, not
+  the database layer, because a DB constraint can't observe multi-call LLM
+  verification results. This is named as a single point of failure for the
+  entire "cited or refused" invariant — a bug in that one piece of
+  application logic breaks the product's core promise silently. Should be
+  a priority target for the exhaustive feature-test coverage Session 4/5
+  build, not treated as "probably fine."
+- **Blocker for Session 4 (Implementation), not for Session 3:** no LLM API
+  credentials exist in this environment. Must be resolved (a real
+  Anthropic API key provisioned, and how it's supplied recorded in
+  `08-deployment-and-operations.md`) before the query pipeline can be built
+  and actually run. Named now, not discovered mid-build.
+- **Open, not yet decided:** whether `lexicon`'s audit trail
+  (`QUERY_LOG`/`CITATION_VERDICT`) needs tamper-evidence (hash-chaining,
+  matching `privacy-forge`'s ADR-0003) or whether append-only-by-convention
+  is sufficient — explicitly left to the next session's threat model rather
+  than decided by default in the data model doc.
+- **No blockers for the next session itself.** Session 3 can start
+  immediately; the LLM-credentials item blocks Session 4, not Session 3.
 
 ## Next recommended session
-- Proposed session title: **Session 2 — Requirements & Architecture**
-- Single objective: Turn this session's validated discovery (problem,
-  RAG-vs-alternatives decision, feasibility findings, success metrics,
-  MVP boundary, non-goals) into concrete functional/non-functional
-  requirements and a real system architecture — specifically resolving the
-  two firm inputs this session produced: (1) hybrid retrieval must use
-  OR-semantics keyword search, and (2) the refusal mechanism needs an
-  explicit groundedness/entailment check design, not a similarity
-  threshold.
-- Inputs required: this handoff; `00-project-brief.md`;
-  `00b-rag-vs-alternatives.md`; `01-scope-and-non-goals.md`;
-  `docs/spikes/session1-hybrid-retrieval/RESULTS.md`.
-- Expected deliverables: `02-requirements.md` (functional/non-functional
-  requirements traceable to the MVP boundary and success metrics);
-  `03-architecture.md` (system architecture, including a concrete design
-  for the groundedness check); `04-data-model.md`; `05-api-contracts.md`.
-- Definition of done: requirements and architecture written and reasoned
-  (not templated), the groundedness-check design is concrete enough to
-  implement against, and neither the stack nor the deep-SDLC-phase count
-  nor the learning budget has been silently changed.
+- Proposed session title: **Session 3 — Security & Threat Model**
+- Single objective: Produce `06-security-threat-model.md` for this
+  RAG-specific system — the prompt-injection/LLM-guardrails learning
+  objective (`00a-ledger-confirmation.md`) needs a real threat model before
+  Session 4 implements anything, not an afterthought bolted on at Session
+  5's testing phase. Must cover: prompt-injection via document content
+  (a malicious instruction embedded inside an ingested document attempting
+  to override the "cited or refused" invariant or exfiltrate other corpus
+  content) and via query text; the embedding-inversion risk this session's
+  data-classification table flagged for chunk embeddings; and resolve the
+  open tamper-evidence question this session left explicitly undecided in
+  `04-data-model.md`.
+- Inputs required: this handoff; `02-requirements.md`; `03-architecture.md`
+  (especially the fail-closed failure-handling section and the LLM
+  provider integration surface); `04-data-model.md`'s revisit-trigger note;
+  `docs/adr/ADR-0001-groundedness-refusal-check.md`.
+- Expected deliverables: `06-security-threat-model.md`, written at real
+  reasoning depth (STRIDE or an equivalent structured method, applied to
+  the actual query and ingestion flows in `03-architecture.md`, not a
+  generic checklist); a decision on the audit-trail tamper-evidence
+  question; any resulting ADRs (e.g. ADR-0002 if the threat model concludes
+  something needs a distinct architectural decision).
+- Definition of done: the threat model is reasoned against this session's
+  real architecture (specific flows, specific data), not written in the
+  abstract; the tamper-evidence question is explicitly resolved one way or
+  the other; the LLM-credentials open item is either resolved or explicitly
+  re-confirmed as still blocking Session 4, not silently dropped.
 
 ## Paste-into-new-session context
 
 **Project:** lexicon — grounded document Q&A system; every answer is
 citation-backed or refused
 **Track:** public flagship
-**Repository state:** branch `main`, unreleased (pre-v0.1.0), Session 1
+**Repository state:** branch `main`, unreleased (pre-v0.1.0), Session 2
 complete
 
-**Problem being solved (validated Session 1, not just asserted):** teams
-with a bounded, changing, authoritative document corpus need answers they
-can act on without independently re-reading the source — a general
-chatbot has no access to the corpus and doesn't know it doesn't know; pure
-keyword search measurably fails on natural-language phrasing (0% recall@3
-with default AND semantics, this session's spike); a fine-tuned model
-can't cheaply track a changing corpus or produce real citations. See
-`00-project-brief.md` and `00b-rag-vs-alternatives.md`.
+**Problem being solved (validated Session 1):** teams with a bounded,
+changing, authoritative document corpus need answers they can act on
+without independently re-reading the source. See `00-project-brief.md` and
+`00b-rag-vs-alternatives.md`.
+
+**The central design decision made this session:** refusal cannot rely on
+retrieval similarity alone (Session 1 spike Finding 2: a
+topically-adjacent-but-wrong query scored 0.701, inside the
+0.706–0.848 range of genuinely correct answers). The architecture now
+requires an independent, post-generation groundedness/entailment
+verification call — a second LLM call, separate from generation, checking
+each cited claim against its exact source passage — before any answer is
+released. See `docs/adr/ADR-0001-groundedness-refusal-check.md`.
 
 **Current stack:**
 - Backend: FastAPI, Python 3.12
 - Frontend: Next.js 15 (App Router)
 - Data: PostgreSQL + pgvector, Redis, S3-compatible object storage (MinIO)
-- Infra: Docker Compose (built and verified booting at Session 0), GitHub
-  Actions (real CI from Session 0)
-- Testing: pytest (backend), Vitest (frontend) — both currently cover only
-  the health-check skeleton; no application logic exists yet
+- Infra: Docker Compose, GitHub Actions CI
+- LLM provider (decided this session, not yet wired up): Anthropic Claude
+  API — mid/high tier for generation, small/fast tier for verification.
+  **No API credentials exist in this environment yet — this blocks Session
+  4 (Implementation), not Session 3.**
+- Testing: pytest (backend), Vitest (frontend) — still only the health-check
+  skeleton; no application logic exists yet.
 
 **Architecture decisions that must not be reversed:**
-- Licence is AGPL-3.0 (hostable app, not a library).
-- Primary frontend/backend framework pair is fixed (Next.js 15 + FastAPI/
-  Python 3.12) — frozen against the portfolio-wide framework allocation
-  ledger.
-- Exactly two deep SDLC phases for this repo: Discovery & Planning
-  (complete, Session 1), Verification & Testing. Do not let a third phase
-  creep in.
-- Learning budget is exactly 2 (RAG evaluation methodology, LLM
-  guardrails/prompt-injection defence) — already at cap.
+- Licence AGPL-3.0.
+- Next.js 15 + FastAPI/Python 3.12, frozen against the portfolio ledger.
+- Exactly two deep SDLC phases: Discovery & Planning (complete), Verification
+  & Testing. No third deep phase.
+- Learning budget exactly 2 (RAG evaluation methodology; LLM
+  guardrails/prompt-injection defence) — at cap.
 - RAG (hybrid retrieval + grounded generation), not fine-tuning or
-  keyword-only search — `00b-rag-vs-alternatives.md`.
-- Hybrid keyword search must use OR semantics, not `plainto_tsquery`'s
-  default AND semantics — measured, Session 1 spike Finding 1.
-- Refusal cannot be a bare retrieval-similarity threshold — must include a
-  groundedness/entailment check — measured, Session 1 spike Finding 2.
+  keyword-only search.
+- Hybrid keyword search must use OR semantics, never `plainto_tsquery`.
+- **Refusal must be post-generation groundedness/entailment verification —
+  an independent LLM call — not a similarity threshold, not reranking
+  alone, not a pre-generation relevance gate.** (`ADR-0001`, this session.)
+- LLM provider is Anthropic Claude, with model-tier asymmetry for cost
+  control (this session's decision — revisit only with a stated reason, not
+  by default).
 
 **Implementation state:**
-- Done: repository skeleton, licence, governance docs, minimal real
-  backend/frontend skeletons, docker-compose proven to boot, real CI
-  pipeline, full discovery/planning documentation, an executed feasibility
-  spike with honestly-reported results.
+- Done: repository skeleton, licence, governance docs, minimal
+  backend/frontend skeletons, docker-compose, CI, full discovery/planning
+  documentation, executed feasibility spike, full requirements and
+  architecture documentation including the first ADR, data model, and API
+  contracts.
 - In progress: nothing mid-flight.
-- Not started: everything product-related — no ingestion, retrieval,
-  generation, or evaluation harness exists as application code yet (the
-  spike script is throwaway and lives under `docs/spikes/`, not `backend/`).
+- Not started: security/threat model (next session); everything
+  product-related as code — no ingestion, retrieval, generation, or
+  verification exists as application code yet.
 
 **Constraints and non-goals:**
-- Full non-goals table with rationale and reconsideration triggers:
-  `docs/project-memory/01-scope-and-non-goals.md`. Includes the permanent
-  boundaries (no fine-tuning, no agentic tool use, no multi-modal input,
-  not a general chatbot, not an LLM gateway, no autonomous action-taking)
-  plus two new ones from this session (no retrieval-quality guarantees
-  beyond harness-evidenced scale; no similarity-threshold-only refusal).
+- Full non-goals table: `docs/project-memory/01-scope-and-non-goals.md`.
+- New this session: no numeric target invented for retrieval quality at
+  scale, refusal recall, citation accuracy, or per-query cost — each is an
+  explicit placeholder pending Session 5's harness or Session 4's real
+  provider pricing, not a guess.
 
 **Task for the next session (single objective):**
-Requirements & Architecture: turn Session 1's discovery into concrete
-functional/non-functional requirements and a system architecture,
-including a concrete design for the groundedness/entailment refusal check
-that Session 1 proved is required but did not design.
+Security & Threat Model: produce `06-security-threat-model.md` covering
+prompt-injection via document content and query text, the embedding-
+inversion risk on chunk embeddings, and resolve the audit-trail
+tamper-evidence question left open in `04-data-model.md`.
 
 **Definition of done:**
-- `02-requirements.md` written with requirements traceable to the MVP
-  boundary and success metrics.
-- `03-architecture.md` written with a concrete groundedness-check design,
-  not a placeholder.
-- `04-data-model.md`, `05-api-contracts.md` written.
-- Stack, deep-phase count, and learning budget unchanged.
+- `06-security-threat-model.md` written at real reasoning depth against
+  this session's actual architecture and flows, not a generic checklist.
+- Tamper-evidence question explicitly resolved.
+- LLM-credentials open item explicitly re-confirmed as still blocking
+  Session 4, or resolved.
 
 **Files to attach or paste:**
 - `docs/project-memory/12-session-handoff.md` (this file)
-- `docs/project-memory/00-project-brief.md`
-- `docs/project-memory/00b-rag-vs-alternatives.md`
-- `docs/project-memory/01-scope-and-non-goals.md`
-- `docs/spikes/session1-hybrid-retrieval/RESULTS.md`
+- `docs/adr/ADR-0001-groundedness-refusal-check.md`
+- `docs/project-memory/03-architecture.md`
+- `docs/project-memory/04-data-model.md`
+- `docs/project-memory/02-requirements.md`
 
 **Ground rules:** Do not change the stack. Do not introduce a third new
 technology. Do not expand the deep-SDLC-phase count beyond two. Do not
 touch `privacy-forge`, `laravel-consent-guard`, or `bookslot`. Ask before
-introducing any new dependency or scope item not already anticipated
-above.
+introducing any new dependency or scope item not already anticipated above.
