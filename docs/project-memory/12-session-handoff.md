@@ -1,5 +1,23 @@
 # Session Handoff
 
+## Retroactive entry — Session 8 (backfilled by Session 10)
+
+Session 8 (`802c412`, "Session 8: write the case study, refresh README
+status, finalize SDLC evidence") never wrote its own entry to this file —
+first noticed and named by Session 9 (see below), left unbackfilled at
+the time as out of Session 9's stated scope. Verified retroactively:
+`git show --stat 802c412` and `git diff 363cf7b 802c412 --stat` both
+confirm the commit changed exactly `README.md` (+92/-23 area),
+`docs/CASE-STUDY.md` (new, 324 lines), and `docs/SDLC-EVIDENCE.md` (+55),
+matching the commit message's own description — the case study's honest
+account of Session 1's spike finding, ADR-0003's injection-hardening
+results, the ADR-0004 descoping decision, and Session 7's four real bugs;
+the README status-banner refresh; and SDLC-EVIDENCE.md's Phase 1/5/7
+corrections. `main` was confirmed up to date with `origin/main` at the
+time of this check, so the commit was genuinely pushed, not merely
+committed locally. No work is missing — only this handoff paragraph was
+skipped at the time.
+
 ## Project
 - Repository: `lexicon`
 - Public or private: public (flagship)
