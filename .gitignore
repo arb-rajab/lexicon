@@ -19,6 +19,9 @@ frontend/.next/
 frontend/out/
 frontend/coverage/
 
+# Claude Code local runtime state
+.claude/
+
 # IDE
 .idea
 .vscode
