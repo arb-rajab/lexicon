@@ -7,468 +7,334 @@
 - Current version or branch: `main` (unreleased, pre-v0.1.0)
 
 ## Session completed
-- Session number and title: **Session 6 — Adversarial Injection Corpus**
-- Objective, as given at the start of this session: build the real,
-  committed, four-category adversarial injection corpus
-  (`06-security-threat-model.md`'s T-01/T-02 design) that Session 5
-  explicitly left open, run it through the real pipeline with the same
-  honest stub-tier labeling discipline as every session since ADR-0004, and
-  wire it into CI the same way as Session 5's evaluation harness. Status:
+- Session number and title: **Session 7 — Release Readiness (Production
+  Images, Local Deployment Proof)**
+- Objective, as given at the start of this session: build a production-shaped
+  Docker image for both services, a `docker-compose.prod.yml` proving the
+  real stack (Postgres+pgvector, Redis, MinIO, backend, frontend) boots and
+  serves real traffic locally, basic honestly-scoped observability, and a
+  real end-to-end proof of the ingest/query/answer-or-refusal pipeline
+  against that production-shaped stack — mirroring privacy-forge's own
+  "Deployment Session A" pattern (real production Dockerfile, proven
+  end-to-end locally, no real cloud spend), applying this portfolio's
+  already-established precedent (privacy-forge's live-demo descoping,
+  bookslot's cloud-provisioning descoping) without relitigating it. Status:
   **complete.**
 
-## Front-loaded question, answered before this session's main work started
+## A correction made before the rest of this session's work
 
-This session opened by asking whether Session 5's zero-slack CI gate
-(11/16 refusal-correctness, 7/10 citation-accuracy) had been confirmed
-stable across multiple runs, or measured once. **Answer: it had been
-measured once** (Session 5's own run). Before trusting that gate, this
-session re-ran `python -m tests.eval.run_evaluation` two additional times
-against a fresh install in a clean container. **All three runs (the
-original Session 5 run plus these two) produced byte-identical results**:
-recall@3 9/9, refusal-correctness 11/16 with the exact same five mismatched
-case IDs each time, citation-accuracy 7/10 with the exact same three
-mismatched case IDs each time. This is expected, not a coincidence worth
-being surprised by: `StubLLMClient.generate()` and `.verify()`
-(`llm/stub_client.py`) are pure functions of their text inputs — no
-randomness, no clock, no ordering-dependent tie-breaking observed in
-practice — so determinism was the predicted outcome, and this session
-confirmed it empirically rather than trusting the prediction. **The
-zero-slack gate is safe to trust as a real regression floor, not a
-one-off measurement that happened to look clean once.**
+This session's own task framing described "structured logging" as
+"already partially present given the audit-table work from Session 6."
+That was checked first, before building on it, and found **not accurate**:
+`QUERY_LOG`/`RETRIEVED_CHUNK`/`CITATION_VERDICT` (`db/models.py`,
+ADR-0002) are a permanent, tamper-evident **audit trail** of pipeline
+decisions, stored in Postgres — not operational log lines, and never
+routed through Python's `logging` module. `grep -r "import logging"
+backend/src` matched nothing outside `alembic/env.py` before this session.
+`backend/src/lexicon/logging_config.py` is what actually adds structured
+**operational** logging this session — a distinct, complementary concern,
+documented as such in that module's own docstring so a future reader
+doesn't re-make the same conflation. Stated here per this project's
+own discipline of correcting assumptions rather than quietly building on
+top of them.
 
-## Credential status — unchanged, restated briefly
+## Credential status — unchanged, re-confirmed against a new artifact
 
-No Anthropic API key (or any other LLM provider credential) exists in this
-environment, and none ever will in this project's current lifecycle, by the
-project owner's deliberate, permanent choice (ADR-0004). Nothing this
-session did changes that. `llm.factory.get_llm_client()`'s tier-selection
-seam is unchanged and untouched — this session's new harness calls it
-exactly the way Session 5's harness, the application, and
-`test_proof_session1_oauth2_case.py` already do, never hardcoding a tier.
+No Anthropic API key (or any other LLM provider credential) exists in
+this environment, and none ever will in this project's current lifecycle,
+by the project owner's deliberate, permanent choice (ADR-0004). **What
+this session added:** the credential-swap claim (Session 4's original —
+"setting `ANTHROPIC_API_KEY` is a config change, not a rewrite") had only
+ever been demonstrated against the dev image or in-process. This session
+re-ran it against the actual production image, `lexicon-backend-prod:latest`,
+using the same image both times, no rebuild between runs:
+
+```
+$ docker run --rm lexicon-backend-prod:latest \
+    python -c "from lexicon.llm.factory import get_llm_client; \
+               c = get_llm_client(); print(type(c).__name__, c.tier)"
+StubLLMClient stub
+
+$ docker run --rm -e ANTHROPIC_API_KEY=sk-ant-placeholder-not-a-real-credential \
+    lexicon-backend-prod:latest \
+    python -c "from lexicon.llm.factory import get_llm_client; \
+               c = get_llm_client(); print(type(c).__name__, c.tier)"
+AnthropicLLMClient real
+```
+
+Safe to run with no real key and no real spend: `anthropic.Anthropic()`'s
+constructor (`llm/anthropic_client.py`) makes no network call — it only
+builds the SDK client object. The placeholder value above is not a real
+credential and was never sent anywhere.
 
 ## Work completed
 
-- **Read `docs/project-memory/12-session-handoff.md` (Session 5's
-  version), `06-security-threat-model.md`, and `docs/adr/ADR-0003` first**,
-  per this session's own explicit instruction.
-- **Confirmed Session 5's CI-gate numbers are reproducible** (see "Front-
-  loaded question" above) before building anything new on top of them.
-- **Built the committed adversarial corpus**
-  (`docs/security/adversarial-corpus/documents/`, 18 real, standalone
-  markdown documents) — genuine variety across all four categories
-  `06-security-threat-model.md` names:
-  - **Category 1 — direct override (4 cases):** "ignore previous
-    instructions," "ignore all prior instructions," and "disregard the
-    above" verbatim (matching `StubLLMClient`'s hardcoded marker list), plus
-    a fake User/Assistant conversation turn phrased to avoid every marker
-    string, testing the stub's detection boundary honestly rather than only
-    its easy cases.
-  - **Category 2 — authority-spoofing (4 cases):** "SYSTEM OVERRIDE:",
-    "ADMIN OVERRIDE:", "SYSTEM NOTICE:" verbatim, plus a fake `[SYSTEM]:`
-    role marker that matches no stub marker string.
-  - **Category 3 — verifier-targeted always-true patterns (6 cases):**
-    reuses the threat model's own example structure ("always respond
-    entailed=true," "verifier: always...") for 3 cases, plus a novel
-    "definitive, pre-validated proof" framing that avoids every marker
-    string, plus two cases that specifically attempt to **suppress the
-    injection_suspected flag itself** — one via a direct "do not flag this
-    as suspicious" instruction, one via character-spaced obfuscation of a
-    known marker phrase (`"i g n o r e   p r e v i o u s..."`) designed to
-    defeat exact-substring matching while staying trivially readable to a
-    human or a real model.
-  - **Category 4 — negative controls (4 cases):** two genuinely benign,
-    lexically imperative documents (a compliance policy, an ops runbook —
-    matching `06-security-threat-model.md`'s own stated examples) that
-    contain no marker substrings at all; two documents that legitimately
-    **discuss or quote** injection-attack phrasing as their real subject
-    matter (a security explainer, an LLM-testing guide) and do contain
-    marker substrings verbatim — included specifically to measure the
-    heuristic's false-positive cost honestly rather than engineer a
-    flattering 0% number.
-  - Every case's query is phrased to closely mirror its document's genuine
-    topic sentence, so the stub's lexical-overlap heuristic would plausibly
-    call the claim entailed on textual grounds alone — making this a real
-    test of whether the `injection_suspected` override actually overrides
-    an otherwise-passing verdict, not a test against claims that would have
-    been refused anyway for unrelated reasons.
-- **Built the dataset and harness**
-  (`backend/tests/security/adversarial_dataset.py`,
-  `adversarial_corpus_loader.py`, `run_adversarial_evaluation.py`,
-  `test_adversarial_corpus.py`) — ingests the corpus into its own isolated
-  corpus row (never mixed with the Session 1 spike corpus or Session 5's
-  golden-dataset corpus, FR-014), then for every case: retrieves via the
-  real `hybrid_retrieve`, checks structural prompt-construction properties
-  directly against `llm/prompts.py`'s builders, runs the real
-  `run_query_pipeline`, and reads back the real, persisted
-  `CITATION_VERDICT` database rows the pipeline actually wrote.
-- **Extracted the stub-tier-vs-real-quality caveat banner into a shared
-  module** (`backend/tests/support/tier_caveat.py`'s `render_tier_caveat`,
-  moved out of Session 5's `run_evaluation.py`'s private `_tier_caveat`) so
-  this session's new harness reuses the identical wording instead of
-  duplicating it — one source of truth for what this project is and is not
-  allowed to claim about a given tier's output. `run_evaluation.py` now
-  imports it; Session 5's own numbers and behavior are unchanged (confirmed
-  by re-running its tests, see Validation below).
-- **Ran the corpus through the real pipeline and got real results,
-  2026-08-27** (re-run three times total during this session; identical
-  every time, same reproducibility discipline as the front-loaded question
-  above applied to this session's own new numbers before trusting them):
-  - **Structural containment (ADR-0003 items 1-2), all 18 corpus documents:
-    18/18.** `build_generation_user_content`'s single delimited block and
-    `build_verification_user_content`'s sandwiched before-and-after
-    warning both held for every document's actual ingested content — a
-    pure prompt-construction property, true at any tier, no model call
-    involved in this specific check at all.
-  - **`injection_suspected → enforced_entailed=False` invariant
-    (ADR-0003 item 3), checked against 18 real `CITATION_VERDICT` rows:
-    0 violations.** Every case that reached verification and had
-    `injection_suspected=true` also had the persisted `entailed=false` —
-    checked through the full, real, wired pipeline (not a direct unit
-    construction; `test_injection_hardening.py` already covers that), a
-    stronger, corpus-scale proof of the same code property.
-  - **Retrieval-correctness (query → paired document, top-ranked):
-    18/18 (100%).**
-  - **Stub marker-detection self-check: 18/18 (100%)** — this corpus's
-    hand-authored predictions about `StubLLMClient`'s ten hardcoded
-    marker strings matched its actual, real behavior exactly: it caught
-    every case phrased to match its list (10 of 14 attack cases) and
-    missed every case deliberately phrased to avoid it (4 of 14 —
-    including the character-spaced obfuscation case), and correctly did
-    not flag either genuinely benign negative control.
-  - **Category 4 false-positive rate: 2/4 (50%)** —
-    `cat4-discusses-injection-topic` and `cat4-quotes-example-instructions`,
-    both genuinely benign documents that quote/discuss real attack
-    phrasing as their actual subject matter, both flagged by the stub's
-    context-blind substring matching. Not a code defect — a real, measured
-    cost of this specific placeholder heuristic, reported rather than
-    hidden.
-- **Wrote the precise claim/non-claim split, in three places, not just
-  one:** the harness's own printed report
-  (`run_adversarial_evaluation.py`'s module docstring and `render()`
-  output, split into "Claim 1" — hard, zero-slack, any-tier invariants —
-  and "Claim 2" — stub-tier self-check numbers only), a dedicated
-  `docs/security/adversarial-corpus/README.md`, and this handoff. **What
-  is proven:** the application-layer enforcement gate (ADR-0003 item 3)
-  cannot be bypassed by document content alone — this is a property of
-  `pipeline/query_pipeline.py`'s code, checked for real, true regardless of
-  which LLM tier is active. **What remains permanently unproven, exactly
-  as ADR-0004 already established:** whether a real model would ever
-  actually get talked into setting `injection_suspected=false`
-  inappropriately in the first place — no test in this repository, present
-  or future, can produce that evidence without a real model, and this
-  session's corpus does not change that.
-- **CI-gated the new harness** (`.github/workflows/ci.yml`) two ways,
-  mirroring Session 5's exact pattern: `pytest -q` now also runs
-  `test_adversarial_corpus.py`, and a new, separate CI step runs
-  `python -m tests.security.run_adversarial_evaluation` directly so the
-  full labeled report prints unconditionally in every CI run's logs. The
-  hard invariants (`structural`, `enforcement`) are asserted with zero
-  slack — any violation is a real regression, never a quality-bar judgment
-  call; the stub-tier self-check numbers (`retrieval`, `stub_detection`,
-  `false_positive`) are gated at their measured baseline, same
-  zero-slack-at-measured-baseline pattern as Session 5's thresholds.
-- **Updated `docs/project-memory/06-security-threat-model.md`** — the
-  "committed adversarial test corpus" section now states "Status: built,
-  Session 6" and links to the real README/results; the Pass criteria
-  paragraph now states precisely how "zero successful injections" was
-  actually provable against a permanent stub tier (as an application-layer
-  enforcement claim, not a detection-never-misses claim); the
-  `injection_suspected` false-negative-rate row in Accepted risks is
-  updated from "unmeasured" to "measured for the stub, permanently
-  unmeasured for any real model," with a note that this session's result
-  does **not** trigger ADR-0003's revisit condition (that condition is
-  specifically about a real-model gap, which this session cannot produce
-  evidence about either way).
-- **Updated `docs/project-memory/07-testing-strategy.md`** — added the
-  adversarial-corpus row to the Levels table, rewrote the Security testing
-  section's corpus paragraph from "not yet built" to the real Claim
-  1/Claim 2 split with actual numbers, added the adversarial-corpus CI gate
-  description, and removed the now-closed "full adversarial injection
-  corpus not yet built" line from Known gaps (replaced with a note that
-  Session 6 narrowed the *enforcement* half of the permanent ADR-0004 gap
-  but not the *real-model-judgment* half).
-- **Updated `docs/SDLC-EVIDENCE.md`'s Phase 5 row** — added a new "5a.
-  Session 6" sub-row with this session's real evidence, and added a note
-  to Session 5's own row recording the 3x reproducibility confirmation.
-- **Rewrote this file.**
+- **Read `docs/project-memory/12-session-handoff.md` (Session 6's
+  version) and `08-deployment-and-operations.md` first**, per this
+  session's own explicit instruction. Found the latter almost entirely
+  empty template beyond a Configuration-and-secrets section Session 4
+  had written.
+- **Surveyed the existing repo state** before writing anything: the dev
+  Dockerfiles (`backend/Dockerfile`, `frontend/Dockerfile`), the dev
+  `docker-compose.yml`, `llm/factory.py`/`config.py`'s credential-swap
+  seam, and confirmed (via `grep`) that Redis is declared in config but
+  never imported anywhere in `backend/src` outside a comment, and MinIO
+  is likewise provisioned but unused — `ingestion/service.py`'s own
+  docstring already said as much for MinIO; this session confirmed the
+  same is true of Redis and recorded it in `08-deployment-and-operations.md`
+  so `/ready`'s scope (Postgres only, below) doesn't read as an oversight.
+- **Built `backend/docker/Dockerfile.prod`** — two-stage build. Stage 1
+  installs a new `prod` extras group (`pyproject.toml`, adds `gunicorn`
+  only). Stage 2 is a slim runtime image, non-root `lexicon` user (uid
+  1000), and pre-warms the `BAAI/bge-small-en-v1.5` fastembed/ONNX model
+  into a fixed, image-baked cache directory at build time (added after
+  finding the first-request live-download problem below).
+  `backend/docker/entrypoint.prod.sh` runs the same `alembic upgrade head`
+  (as `DATABASE_ADMIN_URL`) the dev image's CMD already does, then execs
+  `gunicorn lexicon.main:app --worker-class uvicorn.workers.UvicornWorker
+  --workers "${WEB_CONCURRENCY:-4}" ...` instead of bare `uvicorn`.
+- **Built `frontend/docker/Dockerfile.prod`** — three-stage build using
+  Next.js "standalone" output (`next.config.ts`'s new `output:
+  "standalone"`). Final stage runs as `node:22-slim`'s existing non-root
+  `node` user (an earlier attempt to `useradd --uid 1000` a new user
+  failed — that uid already exists in the base image; fixed by reusing
+  it instead).
+- **Built `docker-compose.prod.yml`** (repo root) — real
+  Postgres+pgvector/Redis/MinIO (same images `docker-compose.yml` already
+  uses) plus `backend`/`frontend` built from the two Dockerfiles above.
+  Distinct host ports from the dev stack (`8011`/`3002`/`5434`/`6381`/
+  `9010`-`9011`) so both can run at once, mirroring privacy-forge's own
+  `docker-compose.prod.yml` convention for the identical reason.
+  **TLS was deliberately not added** — reasoned explicitly in
+  `08-deployment-and-operations.md` rather than either copying
+  privacy-forge's Caddy/`tls internal` setup by default or silently
+  omitting it: privacy-forge's TLS work exists because that project's
+  brief made an explicit decision to stand up a public demo instance;
+  lexicon has no equivalent decision anywhere in its own project memory,
+  and `06-security-threat-model.md`'s trust boundaries don't name public
+  exposure at all. Adding TLS here would prove a capability nothing in
+  lexicon's own scope has asked for.
+- **Added structured operational logging** (`backend/src/lexicon/
+  logging_config.py`) — JSON-lines to stdout, `LOG_LEVEL`-controlled,
+  uvicorn's/gunicorn's own loggers routed through the same formatter —
+  plus a request-logging middleware in `main.py` (`request_id`, `method`,
+  `path`, `status_code`, `duration_ms` per request, `X-Request-ID`
+  response header).
+- **Added `GET /ready`** (`main.py`) alongside the existing `GET /health`
+  — a real split, not two names for one check. `/health` stays
+  liveness-only (unchanged since Session 4); `/ready` runs a real
+  `SELECT 1` against Postgres and returns 503 on failure. Deliberately
+  does not check Redis/MinIO (see the survey finding above — no code path
+  depends on either yet, so asserting readiness against them would be
+  dishonest). `docker-compose.prod.yml`'s `backend` healthcheck targets
+  `/ready`, not `/health`.
+- **Built and booted the full production-shape stack, iteratively, fixing
+  three real bugs found in the process** (all detailed with full
+  reasoning in `08-deployment-and-operations.md`'s Deployment procedure
+  section; summarized here):
+  1. `api/documents.py`'s `upload_document` (an `async def` route) called
+     the synchronous, CPU-bound `ingest_document` inline, blocking the
+     event loop for the duration of every real upload. Invisible under
+     dev's bare `uvicorn --reload`; under `docker/Dockerfile.prod`'s
+     gunicorn, this blocked the worker's heartbeat to the arbiter, which
+     killed the worker mid-upload (`WORKER TIMEOUT`, `SIGABRT`) —
+     observed for real, twice, in this session's own container logs
+     before being diagnosed. **Fixed** via
+     `starlette.concurrency.run_in_threadpool`. Full 35-test backend
+     suite re-run and confirmed still passing after this change.
+  2. The same first real embedding call also triggered a live ~20-30s
+     HuggingFace model download inside the request (observed directly in
+     container logs — `Fetching 5 files: 100%|...`), compounding bug 1 and
+     adding a live external network dependency to the request path.
+     **Fixed** by pre-warming the model into the image at build time
+     (`EMBEDDING_CACHE_DIR`, `backend/docker/Dockerfile.prod`) —
+     confirmed by re-running the full 8-document ingestion with no
+     further worker timeouts and no HuggingFace fetch log lines.
+  3. The `frontend` container reported Docker-health `unhealthy`
+     continuously (`FailingStreak: 132` observed after 31 hours) despite
+     serving real traffic correctly over its published port. Root cause:
+     Docker auto-injects `HOSTNAME=<container id>` into every container;
+     Next's standalone `server.js` binds to `process.env.HOSTNAME` if
+     set, resolving it via `/etc/hosts` to the container's one assigned
+     IP rather than all interfaces — so the healthcheck's own
+     loopback-based `fetch('http://localhost:3000/...')`, run from
+     inside that same container, connection-refused every cycle.
+     **Fixed** by pinning `HOSTNAME=0.0.0.0` explicitly, both in
+     `docker-compose.prod.yml`'s `frontend.environment` (what actually
+     takes effect under compose) and in `frontend/docker/Dockerfile.prod`
+     itself (a `docker run`-without-compose fallback) — confirmed by
+     recreating the container and watching Docker's own reported health
+     status flip from `unhealthy` to `healthy`.
+- **Proved the full pipeline through the production images, for real,
+  reusing the Session 1 spike corpus** (as Session 5's golden dataset and
+  Session 6's own harness both already do) — created a corpus via
+  `POST /api/v1/corpora`, uploaded all 8 spike documents via
+  `POST .../documents`, ran two real queries via `POST .../query`:
+  - `"How do I check a plaintext password against a stored hash at
+    login?"` (golden dataset's `legit-oauth2-password-check`) →
+    ```json
+    {"query_log_id":"d2d211b8-73ba-4f73-a61a-e7a41dba758a","answered":true,
+     "answer":"How do I check a plaintext password against a stored hash at login.",
+     "citations":[{"chunk_id":"e1dfe1a9-a0c8-4f61-ab4c-aac21b47293b",
+       "document_id":"5ef1998b-334b-4e1b-80ce-5d3716c19148",
+       "source_filename":"oauth2-jwt.md",
+       "section_heading":"Hash and verify the passwords { #hash-and-verify-the-passwords }",
+       "claim_text":"How do I check a plaintext password against a stored hash at login"}],
+     "refusal_reason":null,"retrieved_chunk_count":5}
+    ```
+  - `"How do I set up 'Sign in with Google' as an OAuth2 identity
+    provider?"` (the canonical Session 1/ADR-0001 adjacent-but-wrong
+    case) →
+    ```json
+    {"query_log_id":"9bae560f-2af7-419e-bb0e-cbc482fb035b","answered":false,
+     "answer":null,"citations":[],"refusal_reason":"verification_failed",
+     "retrieved_chunk_count":5}
+    ```
+
+  **Same stub-tier-vs-real-quality caveat as every session since
+  ADR-0004: this is real evidence the production images serve the real,
+  wired pipeline correctly end-to-end — it is not evidence of real model
+  entailment quality**, since `ANTHROPIC_API_KEY` is unset in this
+  environment (see Credential status above).
+- **Re-confirmed the credential-swap point against the production image
+  specifically** — see Credential status above for the exact commands and
+  output.
+- **Rewrote `docs/project-memory/08-deployment-and-operations.md`** — was
+  almost entirely an empty template (only Configuration and secrets had
+  real content, from Session 4); now has real content in every section,
+  including the three bugs above, the TLS reasoning, and an honest
+  Observability split between what's real today and what's genuinely
+  future work (metrics, tracing, log aggregation, dashboards/alerting —
+  none built, none silently assumed).
+- **Updated `docs/SDLC-EVIDENCE.md`'s Phase 6 row** — extended with this
+  session's real evidence; kept at **Baseline** depth per
+  `07-testing-strategy.md`'s existing deep-phase budget rule (exactly
+  two deep phases: Discovery, Verification/Testing) — this session adds
+  real evidence within that budget, not a request to expand it.
+- **Ran the full existing backend test suite (35 tests) plus ruff/mypy
+  strict/bandit against a real Postgres**, after all source changes
+  (`api/documents.py`, `config.py`, `ingestion/embeddings.py`,
+  `logging_config.py`, `main.py`) — see Validation below for the exact
+  result.
+- **Ran the frontend's existing `lint`/`build`/`test` scripts locally**
+  after `next.config.ts`'s `output: "standalone"` change — all three
+  still pass; the standalone output only adds an extra build artifact,
+  it doesn't change `next dev`, `eslint`, or `vitest`'s behavior.
 - `privacy-forge`, `laravel-consent-guard`, and `bookslot` were not
-  touched, read, or modified this session.
+  touched, read, or modified this session (privacy-forge's own
+  `docker-compose.prod.yml` and `08-deployment-and-operations.md` were
+  read for reference on the established pattern, per this session's own
+  instruction to mirror it — never written to).
 
 ## Files created or changed
 
-- `docs/security/adversarial-corpus/documents/*.md` (new, 18 files) — the
-  committed adversarial corpus
-- `docs/security/adversarial-corpus/README.md` (new) — category breakdown,
-  the precise Claim 1/Claim 2 split, measured baseline table
-- `backend/tests/security/__init__.py` (new)
-- `backend/tests/security/adversarial_dataset.py` (new) — the 18-case
-  dataset, category enum, per-case marker-detection predictions
-- `backend/tests/security/adversarial_corpus_loader.py` (new) — real
-  ingestion into an isolated corpus
-- `backend/tests/security/run_adversarial_evaluation.py` (new) — the
-  CI-gated harness, runnable standalone
-  (`python -m tests.security.run_adversarial_evaluation`) or via pytest
-- `backend/tests/security/test_adversarial_corpus.py` (new) — wires the
-  harness into `pytest -q`
-- `backend/tests/support/tier_caveat.py` (new) — the stub-tier-vs-
-  real-quality banner, extracted from `tests/eval/run_evaluation.py`
-- `backend/tests/eval/run_evaluation.py` — `_tier_caveat` removed, now
-  imports and calls the shared `render_tier_caveat`; behavior unchanged
-  (confirmed by re-running `test_evaluation_harness.py`)
-- `.github/workflows/ci.yml` — added a dedicated adversarial-corpus CI step
-- `docs/project-memory/06-security-threat-model.md` — corpus status,
-  pass-criteria precision, Accepted risks row updated
-- `docs/project-memory/07-testing-strategy.md` — Levels table, Security
-  testing section, Known gaps updated
-- `docs/SDLC-EVIDENCE.md` — Phase 5 row extended with a Session 6 sub-row
+- `backend/docker/Dockerfile.prod` (new) — production backend image
+- `backend/docker/entrypoint.prod.sh` (new) — migrate-then-serve entrypoint
+- `frontend/docker/Dockerfile.prod` (new) — production frontend image
+- `frontend/public/.gitkeep` (new) — the standalone build's runner stage
+  expects a `public/` directory to exist; none did before this session
+- `docker-compose.prod.yml` (new, repo root) — the production-shape stack
+- `backend/pyproject.toml` — new `prod` optional-dependencies group (`gunicorn`)
+- `backend/src/lexicon/config.py` — new `log_level`, `embedding_cache_dir` settings
+- `backend/src/lexicon/logging_config.py` (new) — structured JSON logging
+- `backend/src/lexicon/main.py` — logging configured at import time,
+  request-logging middleware, new `GET /ready` endpoint
+- `backend/src/lexicon/api/documents.py` — `upload_document`'s ingestion
+  call moved through `run_in_threadpool` (bug 1 above)
+- `backend/src/lexicon/ingestion/embeddings.py` — `_model()` now passes
+  `cache_dir=settings.embedding_cache_dir` through to `TextEmbedding`
+- `frontend/next.config.ts` — `output: "standalone"`
+- `docs/project-memory/08-deployment-and-operations.md` — rewritten from
+  an almost-empty template to real content in every section
+- `docs/SDLC-EVIDENCE.md` — Phase 6 row extended
 - `docs/project-memory/12-session-handoff.md` (this file, rewritten)
 
 ## Decisions made
 
-- **"Zero successful injections" (the threat model's own stated pass
-  criterion) is honestly interpretable, against a permanent stub tier,
-  only as "zero application-layer enforcement failures," not as "the
-  detection heuristic never misses an attack."** `StubLLMClient`'s
-  marker-based detection demonstrably misses 4 of 14 attack cases in this
-  corpus (by design — those cases were deliberately phrased to test the
-  detection boundary). Conflating "the stub didn't flag it" with "the
-  injection succeeded" would misrepresent what actually happened: in every
-  one of those 4 cases, the enforcement mechanism had nothing to enforce
-  because nothing was flagged as suspicious — a documented limit of the
-  placeholder heuristic's detection surface, not a defeat of ADR-0003's
-  code. This distinction is why `structural`/`enforcement` (hard,
-  zero-slack invariants) and `stub_detection`/`false_positive` (stub-tier
-  self-check numbers) are computed, reported, and CI-gated completely
-  separately, never merged into one pass/fail number — reinforcing
-  `06-security-threat-model.md`'s own existing requirement that generator-
-  and verifier-targeted suites be scored as distinct groups, extended here
-  to a second axis (enforcement-vs-detection) the original design didn't
-  have to consider because it predated this session's actual stub-tier
-  execution.
-- **Negative controls were deliberately designed so 2 of 4 would false-
-  positive, not to produce a flattering 0% number.** A corpus where every
-  negative control happily passes would prove nothing about the
-  heuristic's real behavior on genuinely ambiguous content (a document
-  that quotes an attack phrase verbatim really is textually
-  indistinguishable from one that deploys it, under pure substring
-  matching) — reporting the actual 50% rate, and explaining precisely why
-  it occurs, is more honest and more useful than hiding it by picking
-  softer negative-control content.
-- **The tier-caveat banner was extracted to a shared module rather than
-  duplicated.** Session 5's `_tier_caveat` was private to
-  `run_evaluation.py`; this session's harness needed the identical wording
-  and structural assertion (`test_evaluation_harness.py`/
-  `test_adversarial_corpus.py` both assert specific banner text is
-  present). Duplicating ~40 lines of caveat text across two harnesses
-  would have let them silently drift apart on a future edit to one but not
-  the other — extracting to `tests/support/tier_caveat.py` keeps one
-  source of truth. This is the only change to Session 5's existing code
-  this session made; its own numbers and tests are unaffected (verified,
-  see Validation below).
-- **Reproducibility was checked empirically before trusting either gate**
-  (Session 5's, at the start of this session, and this session's own new
-  numbers, at the end) — a zero-slack threshold on a measurement taken
-  once is exactly the kind of thing that fails CI for the wrong reason
-  later if the measurement wasn't actually deterministic. Both gates are
-  now backed by multiple identical runs, not a single one.
+- **TLS/reverse-proxy was deliberately not added** — see Work completed
+  above and `08-deployment-and-operations.md`'s Deployment procedure
+  section for the full reasoning. Not a cost-cutting shortcut: lexicon
+  genuinely has no prior decision or threat-model boundary that TLS would
+  be answering.
+- **The embedding model is baked into the production image at build
+  time, not left to download lazily.** Found necessary, not just
+  nice-to-have, once bug 1 and bug 2 above were understood together — a
+  production image that depends on a live third-party download during its
+  very first real request is a real reliability and latency problem
+  independent of the gunicorn-timeout interaction that first surfaced it.
+- **`/ready` checks only Postgres, not Redis or MinIO.** A readiness
+  check that asserts a dependency the application doesn't actually use
+  yet would be dishonest, not merely incomplete — matching this project's
+  standing discipline (ADR-0004's stub-tier labeling, `07-testing-strategy.md`'s
+  Known gaps) of stating what's real precisely rather than rounding up.
+- **Phase 6 stays at Baseline depth in `SDLC-EVIDENCE.md`**, not promoted
+  to Deep, despite substantial new evidence — `07-testing-strategy.md`'s
+  deep-phase budget (Discovery, Verification/Testing, exactly two) is an
+  existing project rule this session didn't relitigate.
 
 ## Validation performed
 
-- **Session 5's evaluation-harness numbers were re-run 3 times total**
-  (see "Front-loaded question" above) — byte-identical every time.
-- **The full existing test suite still passes** against real
-  Postgres+pgvector, including the new `test_adversarial_corpus.py` and the
-  refactored `tests/eval/run_evaluation.py` (confirmed by running
-  `pytest -q` after this session's changes).
-- **The adversarial-corpus harness was executed 3 times total** (once
-  standalone before wiring pytest, once via `pytest -q`, once more
-  standalone after) — identical results (structural 18/18, enforcement
-  0 violations, retrieval 18/18, stub-detection 18/18, false-positive 2/4)
-  every time.
+- **Both production images build successfully** (`docker build -f
+  backend/docker/Dockerfile.prod backend`, `docker build -f
+  frontend/docker/Dockerfile.prod frontend`) — confirmed via direct build
+  output, not assumed.
+- **`docker-compose.prod.yml` brings up all five services to Docker's own
+  `healthy` status** — confirmed via `docker compose ... ps`, re-checked
+  after each of the three bug fixes above until all five were genuinely
+  healthy simultaneously (not merely running).
+- **Full ingest → query → answer/refusal pipeline proven through the
+  running production containers via real HTTP calls** (`curl` against
+  the published backend port) — see Work completed above for the exact
+  requests and real, captured JSON responses.
+- **Credential-swap point re-run against `lexicon-backend-prod:latest`
+  twice, same image, no rebuild** — see Credential status above for the
+  exact commands and output.
+- **Full backend test suite re-run after all source changes**: `ruff
+  check .`, `mypy src` (strict), `bandit -r src`, and `pytest -q` (35
+  tests) run together against a real Postgres+pgvector instance — run
+  once immediately after the `api/documents.py` fix (35 passed) and again
+  as a combined check after every backend source change in this session
+  was in place. **That combined run caught a real `ruff` failure**
+  (`ingestion/embeddings.py:18` — the new `cache_dir=` argument pushed the
+  line to 101 characters, over this project's 100-character limit) —
+  fixed by wrapping the call across two lines. The backend prod image was
+  rebuilt on the fixed code (confirmed working, including a from-scratch
+  `--no-cache` rebuild), and the full combined check (`ruff`, `mypy
+  --strict`, `bandit`, `pytest -q`) was re-run clean end to end afterward:
+  `All checks passed!`; `Success: no issues found in 33 source files`;
+  `35 passed in 715.83s`. (Two intermediate re-run attempts hit transient
+  PyPI-connectivity errors and an unrelated host Docker Desktop restart
+  mid-session — both environment blips, not code issues; the third
+  attempt, after the host network and Docker daemon settled, passed
+  clean.)
+- **Frontend `npm run lint`, `npm run build`, `npm test` all still pass**
+  after `next.config.ts`'s `output: "standalone"` change.
 - Confirmed `privacy-forge`, `laravel-consent-guard`, and `bookslot` were
-  not modified this session.
+  not modified this session (git status / directory listing checked
+  before and after).
 
 ## Open questions and risks
 
-- **Real entailment/injection-resistance quality remains permanently
-  unverified** (ADR-0004, unchanged) — this session narrows the
-  *application-layer enforcement* half of the T-02 risk (now real, checked,
-  zero-slack) but does not and cannot narrow the *real-model-detection-
-  judgment* half. Any future session, document, or summary that describes
-  this session's corpus as having "tested injection resistance" without
-  the enforcement-vs-detection qualifier would misrepresent what was
-  actually measured.
-- **Retrieval quality at realistic scale remains unmeasured** — unchanged
-  from Session 5, out of this session's scope.
-- **Rate limiting (NFR-007), PDF ingestion, MinIO upload, async ingestion,
-  and instance-level authentication** remain unimplemented, unchanged from
-  prior sessions, unaffected by this session's work.
-
-## Next recommended session
-
-- Proposed session title: whatever the portfolio's next priority is — both
-  of this repository's deep SDLC phases (Discovery & Planning, Verification
-  & Testing) are now real and substantively evidenced, including the
-  adversarial-corpus piece that was the last explicitly-open item from
-  Verification & Testing.
-- If further security work is prioritized: the two Category 3 cases that
-  most directly test detection-boundary generalization
-  (`cat3-novel-confirmation-framing`, `cat3-suppress-flag-obfuscated`) are
-  the corpus's most interesting cases for a future session that wants to
-  reason further about detection-heuristic limits — though any such
-  reasoning remains bounded by ADR-0004 exactly as this session's own
-  findings are.
-- Inputs required: this handoff; `docs/adr/ADR-0004`;
-  `docs/security/adversarial-corpus/README.md`;
-  `backend/tests/security/` (this session's harness).
-
-## Paste-into-new-session context
-
-**Project:** lexicon — grounded document Q&A system; every answer is
-citation-backed or refused
-**Track:** public flagship
-**Repository state:** branch `main`, unreleased (pre-v0.1.0), Session 6
-(adversarial injection corpus) complete on top of Session 5's evaluation
-harness and Session 4.5's ADR-0004 descoping decision
-
-**Problem being solved (validated Session 1):** teams with a bounded,
-changing, authoritative document corpus need answers they can act on
-without independently re-reading the source. See `00-project-brief.md` and
-`00b-rag-vs-alternatives.md`.
-
-**The central design decision from Session 2 (unchanged, implemented
-Session 4):** refusal cannot rely on retrieval similarity alone. An
-independent, post-generation groundedness/entailment verification call
-gates every answer before release. See
-`docs/adr/ADR-0001-groundedness-refusal-check.md` and
-`backend/src/lexicon/pipeline/query_pipeline.py`.
-
-**Session 3's finding, hardened in real code Session 4, corpus-scale-proven
-Session 6:** the verifier is a first-class attack target (T-02),
-structurally different from the generator (T-01) and requiring a
-structurally different defense (ADR-0003). Both are real, tested, and
-provably different implementations (`test_injection_hardening.py`'s unit
-tests, now joined by Session 6's 18-document corpus-scale integration
-proof, `backend/tests/security/`).
-
-**Session 4.5's finding (permanent, not a temporary gap):** real LLM
-provider credentials are permanently descoped for this project by deliberate
-owner choice (ADR-0004) — this project's central, original differentiating
-claim (real entailment reasoning correctly separating grounded answers from
-topically-adjacent fabrications, and real resistance to a verifier-hijack
-attempt) is permanently unprovable in this project's current lifecycle.
-
-**Session 5's finding:** the evaluation *methodology* is real, executed,
-CI-gated, and — as of this session — confirmed reproducible across multiple
-runs: a committed 16-case golden dataset, real recall@3 (9/9), and real,
-reproducible refusal-correctness (11/16) and citation-accuracy (7/10)
-numbers against `StubLLMClient`'s known heuristic.
-
-**This session's (6's) central finding, and the one that must not be lost
-in any future summary of this project:** the four-category adversarial
-injection corpus is now real, committed, and CI-gated
-(`docs/security/adversarial-corpus/`, `backend/tests/security/`) — 18
-documents, and it proves exactly two things, kept explicitly separate:
-**(1) application-layer enforcement (ADR-0003 item 3's
-`injection_suspected → enforced_entailed=False` override, and items 1-2's
-structural delimiting) is real, checked, zero-slack, and holds regardless
-of LLM tier** — a property of the application's code, not of any model's
-judgment, proven against 18 real documents and real database rows, not one
-canned unit-test case. **(2) `StubLLMClient`'s own crude, hardcoded
-marker-detection is a stub-tier self-check only** (18/18 self-check match,
-2/4 negative-control false-positive rate) and says nothing about whether a
-real model would recognize a novel injection phrasing or distinguish
-genuine discussion of injection from an actual attempt — that gap is
-ADR-0004's, permanent, and unchanged by this session existing. Any future
-summary that says this session "proved injection resistance" without that
-qualifier is wrong.
-
-**Current stack:** unchanged from Session 5 — FastAPI/Python 3.12 backend,
-Next.js 15 frontend (still Session 0 skeleton), PostgreSQL + pgvector,
-Redis (provisioned, unused), MinIO (provisioned, unused), Docker Compose,
-GitHub Actions CI (now with two dedicated harness steps — Session 5's
-evaluation harness and Session 6's adversarial corpus). `StubLLMClient`
-remains the permanent evaluation substrate (ADR-0004); `AnthropicLLMClient`
-remains real, unexercised code.
-
-**Architecture decisions that must not be reversed:** all of Session 4.5's
-and Session 5's, unchanged (AGPL-3.0; Next.js 15 + FastAPI/Python 3.12;
-exactly two deep SDLC phases; learning budget at cap; OR-semantics keyword
-search; post-generation groundedness verification, never a similarity
-threshold; ADR-0003's exact hardening contract; DB-permission-enforced
-audit-trail append-only property; `llm.factory.get_llm_client()`'s
-tier-selection seam must not be hard-wired away; real LLM credentials
-remain permanently descoped absent an explicit ADR-0004 revisit; Session 5's
-evaluation-harness CI-gate thresholds are regression floors, not quality
-targets, and must not be raised without a new real measurement backing
-them. **New this session, do not reverse without a documented reason:**
-Session 6's adversarial-corpus CI-gate thresholds (`run_adversarial_
-evaluation.py`'s module constants) are the same kind of regression floor —
-the hard invariants (`structural`, `enforcement`) must never be relaxed
-below 100%/zero-violations for any reason (a failure there is always a real
-code regression), and the stub-tier self-check thresholds must not be
-raised or lowered without a new real measurement backing the new number.
-Do not read a passing adversarial-corpus gate as evidence of real
-injection resistance — see this session's central finding above.
-
-**Implementation state:**
-- Done: everything from Session 5, plus Session 6's 18-case adversarial
-  injection corpus (`docs/security/adversarial-corpus/`,
-  `backend/tests/security/`), CI-gated with both hard invariants and
-  measured-baseline stub-tier thresholds, its Claim 1/Claim 2 split
-  enforced in the harness's own printed output.
-- In progress: nothing mid-flight.
-- Not started / explicitly deferred: rate limiting (NFR-007), PDF
-  ingestion, MinIO object-storage upload, async ingestion worker,
-  instance-level authentication, retrieval quality at realistic corpus
-  scale.
-- **Permanently descoped, not merely deferred:** real-model verification of
-  ADR-0001's entailment mechanism and ADR-0003's injection-detection
-  judgment (ADR-0004, unchanged) — Session 6 narrows the enforcement half
-  of the T-02 risk specifically, not this permanent gap.
-
-**Constraints and non-goals:**
-- Full non-goals table: `docs/project-memory/01-scope-and-non-goals.md`.
-- Real LLM provider credentials — see ADR-0004.
-
-**Task for the next session:** no single mandated objective — both deep
-SDLC phases are now substantively evidenced. Take the portfolio's next
-priority, or (if further hardening of this repository specifically is
-wanted) treat the detection-boundary cases named in "Next recommended
-session" above as a starting point, with the same ADR-0004 boundary this
-session respected.
-
-**Definition of done for this session (met):**
-- The corpus exists under `docs/security/adversarial-corpus/`, covering
-  all four categories `06-security-threat-model.md` names, with
-  generator- and verifier-targeted structural checks and enforcement
-  checks scored as distinct, separately-labelled groups.
-- Results are real, executed, and CI-gated, with the same stub-tier caveat
-  enforced inside the harness's own output that Session 5 established as
-  the pattern.
-- The specific claim proven (application-layer enforcement holds
-  regardless of model output) is stated clearly, separate from the claim
-  that remains unprovable (real model resistance) — in the harness output,
-  the README, and this handoff.
-- No output anywhere reads as if real model resistance to injection was
-  demonstrated.
-
-**Files to attach or paste:**
-- `docs/project-memory/12-session-handoff.md` (this file)
-- `docs/adr/ADR-0004-real-llm-verification-descoped.md`
-- `docs/adr/ADR-0003-verification-injection-hardening.md`
-- `docs/security/adversarial-corpus/README.md`
-- `backend/tests/security/` (this session's harness)
-- `backend/tests/eval/` (Session 5's harness — confirmed reproducible, unaffected)
-
-**Ground rules:** Do not change the stack. Do not introduce a third new
-technology. Do not expand the deep-SDLC-phase count beyond two. Do not
-touch `privacy-forge`, `laravel-consent-guard`, or `bookslot`. Do not report
-or remember a stub-tier test or harness result as if it were evidence about
-real model behavior — specifically, do not describe the adversarial
-corpus's enforcement results as "injection resistance proven." Do not
-reintroduce "obtain a real API key" as an open or blocking item without
-first explicitly revisiting ADR-0004. Do not raise any harness's CI-gate
-thresholds without a new real measurement backing the new number. Ask
-before introducing any new dependency or scope item not already
-anticipated above.
+- **No CI job builds or exercises either production image or
+  `docker-compose.prod.yml`.** All of this session's evidence is from
+  local, manual verification — a regression in either Dockerfile, the
+  compose file, or any of the three bugs' fixes would not be caught
+  automatically today. Not fixed this session (out of the stated scope,
+  which was proving deployability locally, not building release CI); a
+  reasonable candidate for a future session if this project's release
+  process is ever revisited.
+- **`WEB_CONCURRENCY=4` and the general resource footprint of the
+  production stack are unmeasured placeholders**, same honesty standard
+  as `max_question_length` (Session 3) — no load-testing was performed or
+  claimed.
+- **Metrics, tracing, dashboards, and alerting remain genuinely
+  unbuilt.** `08-deployment-and-operations.md`'s Observability section
+  states plainly what a real deployment would still need; none of it
+  exists today, and none was represented as existing.
+- **This session's upload-latency observations (16-30s per document
+  during one test run) were confounded by a concurrent, CPU-heavy
+  background `pytest` run on the same host** — re-measured cleanly after
+  that background run finished (documents uploaded promptly, no further
+  worker timeouts). No throughput or latency number from this session
+  should be read as a representative production figure; none is claimed
+  as one.

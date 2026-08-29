@@ -1,0 +1,50 @@
+# Production-shaped frontend image (Session 7 — release readiness).
+# Distinct from ../Dockerfile, which docker-compose.yml's dev stack
+# builds: that image runs `npm install` (full tree, including
+# devDependencies) then `next start` via the Next.js CLI, and runs as
+# root. This image uses Next's "standalone" output (next.config.ts) — a
+# multi-stage build whose final stage carries only the dependencies
+# actually traced as used at runtime plus a plain `server.js`, no
+# Next.js CLI, no devDependencies — and a non-root runtime user.
+#
+# Build context is still `frontend/` (same as ../Dockerfile).
+
+FROM node:22-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+FROM node:22-slim AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# Next.js inlines NEXT_PUBLIC_* values into the client bundle at build
+# time (real Next.js behavior, not specific to this Dockerfile) — so the
+# backend URL the browser will call must be known at image-build time,
+# not just at container-start time. The default below matches
+# docker-compose.prod.yml's published backend port; override with
+# `docker build --build-arg NEXT_PUBLIC_API_URL=...` for a different
+# target.
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+RUN npm run build
+
+FROM node:22-slim AS runner
+# node:22-slim already ships a non-root `node` user at uid/gid 1000 —
+# reused rather than creating a second one (a fresh `useradd --uid 1000`
+# collides with it and fails the build).
+WORKDIR /app
+ENV NODE_ENV=production
+# Pinned explicitly so the standalone server binds to all interfaces —
+# see docker-compose.prod.yml's frontend `environment:` comment for the
+# real Docker-HOSTNAME-injection bug this works around. Compose's own
+# `environment:` override (also set) is what actually takes effect when
+# this image runs under docker-compose.prod.yml; this ENV is the
+# fallback for `docker run` without it.
+ENV HOSTNAME=0.0.0.0
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+USER node
+EXPOSE 3000
+CMD ["node", "server.js"]

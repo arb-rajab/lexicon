@@ -1,0 +1,168 @@
+# lexicon — production-shaped stack (Session 7, release readiness)
+#
+# What a real host running `docker compose up -d` against this file would
+# actually run: real Postgres+pgvector, Redis, and MinIO (the same images
+# docker-compose.yml already uses — those were never the dev-only part of
+# that file), with `backend`/`frontend` built from
+# backend/docker/Dockerfile.prod and frontend/docker/Dockerfile.prod
+# instead of the dev Dockerfiles docker-compose.yml builds.
+#
+# Verified locally only, so far — see
+# docs/project-memory/08-deployment-and-operations.md and
+# docs/project-memory/12-session-handoff.md. Host ports below are
+# deliberately different from docker-compose.yml's (8011 not 8010, 3002
+# not 3001, 5434 not 5433, 6381 not 6380, 9010/9011 not 9000/9001) so both
+# stacks can run at once without colliding — matching the same convention
+# privacy-forge's docker-compose.prod.yml already uses, for the same
+# reason. Run with a distinct project name to keep volumes/networks
+# separate from the dev stack too, e.g.:
+#   docker compose -f docker-compose.prod.yml -p lexicon-prod up -d --build
+#
+# No cloud infrastructure is provisioned or targeted by this file — by
+# this portfolio's established, deliberate precedent (privacy-forge's
+# live-demo descoping, bookslot's cloud-provisioning descoping; see
+# 12-session-handoff.md for why this session doesn't relitigate that).
+# This is a local proof that the production images and stack wiring
+# actually work, not a deployment to any real host.
+#
+# TLS: deliberately not added. privacy-forge's own production-shape stack
+# terminates HTTPS (via Caddy, `tls internal`, a placeholder domain)
+# because that project's brief made an explicit decision to stand up a
+# public-facing demo instance, which made "does it serve real HTTPS"
+# something that decision required proving even locally. lexicon has no
+# equivalent decision anywhere in docs/project-memory/ — no session has
+# committed to a public demo instance, and 06-security-threat-model.md's
+# trust boundaries don't name public network exposure as one this project
+# takes on. Terminating TLS with a self-signed cert this session would
+# therefore be proving a capability nothing in this project's own scope
+# actually calls for. If a future session ever does decide to expose a
+# real or placeholder public endpoint, the reverse-proxy/TLS layer would
+# be the piece to add then — not fabricated speculatively here.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lexicon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lexicon}
+      POSTGRES_DB: ${POSTGRES_DB:-lexicon}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lexicon} -d ${POSTGRES_DB:-lexicon}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lexicon}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-lexicon-dev-only}
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    volumes:
+      - minio_prod_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: docker/Dockerfile.prod
+    image: lexicon-backend-prod:latest
+    restart: unless-stopped
+    environment:
+      # Same ADR-0002 two-role split as docker-compose.yml — internal
+      # hostnames/ports are unchanged (only this file's *published* host
+      # ports differ, for the dev/prod-side-by-side reason above).
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${APP_DB_ROLE:-lexicon_app}:${APP_DB_PASSWORD:-lexicon_app_dev_only}@postgres:5432/lexicon}
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:-postgresql+psycopg://${POSTGRES_USER:-lexicon}:${POSTGRES_PASSWORD:-lexicon}@postgres:5432/lexicon}
+      APP_DB_ROLE: ${APP_DB_ROLE:-lexicon_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-lexicon_app_dev_only}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      # LLM provider (ADR-0001/ADR-0003) — the credential-swap point this
+      # session re-confirms against this exact production image. Empty
+      # here selects StubLLMClient (llm/factory.py); setting a real
+      # ANTHROPIC_API_KEY and restarting this service is the entire
+      # migration path to AnthropicLLMClient — no different image, no
+      # rebuild. See docs/project-memory/12-session-handoff.md for the
+      # real, executed proof of that claim against this file specifically.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GENERATION_MODEL: ${GENERATION_MODEL:-claude-sonnet-5}
+      VERIFICATION_MODEL: ${VERIFICATION_MODEL:-claude-haiku-4-5}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+    ports:
+      - "8011:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # /ready (main.py, Session 7), not /health — a production healthcheck
+      # should reflect whether the service can actually do real work (real
+      # Postgres connectivity), not merely that the process is up. See
+      # main.py's own comment on the /health vs /ready split.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: docker/Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8011}
+    image: lexicon-frontend-prod:latest
+    restart: unless-stopped
+    environment:
+      # Next.js standalone's server.js binds to `process.env.HOSTNAME` if
+      # set, falling back to "0.0.0.0" only when it's absent. Docker
+      # itself auto-injects HOSTNAME=<container id> into every
+      # container's environment (visible via `docker exec ... env`) —
+      # server.js then resolves that via /etc/hosts to the container's
+      # single assigned IP and binds only there, not to all interfaces.
+      # A loopback-based healthcheck (`localhost`, 127.0.0.1) — like this
+      # service's own healthcheck below — then fails, even though the
+      # published host port still works (Docker's NAT lands traffic
+      # directly on that IP). Found and fixed this session
+      # (12-session-handoff.md) by pinning HOSTNAME explicitly, which
+      # wins over Docker's own default injection.
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3002:3000"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_prod_data:
+  minio_prod_data:

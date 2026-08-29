@@ -43,6 +43,17 @@ class Settings(BaseSettings):
     # Retrieval / cost control (03-architecture.md Cost-control approach).
     top_n_chunks: int = 5
     embedding_model: str = "BAAI/bge-small-en-v1.5"
+    # Session 7 (release readiness): a fixed on-disk cache for fastembed's
+    # ONNX model weights. `None` (the dev default, unchanged) leaves
+    # fastembed's own default cache location in place — fine for
+    # `docker-compose.yml`'s dev image, which never rebuilds mid-session.
+    # docker/Dockerfile.prod sets this explicitly and pre-warms it at
+    # *build* time (see that file's comment) specifically so the first
+    # real request in a freshly started production container never pays
+    # a live HuggingFace download — see ingestion/embeddings.py and
+    # docs/project-memory/12-session-handoff.md for the real timeout this
+    # was found fixing.
+    embedding_cache_dir: str | None = None
 
     # T-05 cost-abuse control (06-security-threat-model.md) — a concrete
     # number chosen this session against no real pricing data yet, so it is
@@ -52,6 +63,13 @@ class Settings(BaseSettings):
 
     corpus_owner_role: str = Field(default="corpus_owner")
     knowledge_worker_role: str = Field(default="knowledge_worker")
+
+    # Session 7 (release readiness) — structured logging level
+    # (logging_config.py). Independent of GUNICORN's own `--log-level`
+    # (docker/entrypoint.prod.sh), which controls gunicorn's own
+    # worker-lifecycle log verbosity, not the application logger this
+    # setting configures.
+    log_level: str = "INFO"
 
 
 @lru_cache

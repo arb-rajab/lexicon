@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from lexicon.api.deps import get_db
 from lexicon.api.errors import not_found
@@ -26,7 +27,24 @@ async def upload_document(
     _require_corpus(db, corpus_id)
     raw_bytes = await file.read()
     try:
-        result = ingest_document(db, corpus_id, file.filename or "untitled", raw_bytes)
+        # ingest_document is synchronous, CPU-bound work (chunking, then
+        # ONNX embedding inference — ingestion/embeddings.py has no async
+        # path). Session 7 found this out the hard way: calling it inline
+        # from this `async def` handler runs it directly on the event
+        # loop, blocking it for the full duration of a real upload
+        # (seconds, longer on the first call while fastembed downloads and
+        # caches its ONNX model). Under docker/Dockerfile.prod's gunicorn
+        # (unlike dev's bare `uvicorn --reload`), a blocked event loop
+        # also stops the worker from answering the arbiter's heartbeat,
+        # which reliably killed the worker mid-upload with a false
+        # "WORKER TIMEOUT". `run_in_threadpool` moves the blocking call
+        # off the event loop, matching how FastAPI already handles a
+        # plain `def` route (api/query.py's `ask_question` gets this for
+        # free from FastAPI itself; this route is `async def` because it
+        # also awaits `file.read()` above, so it needs the opt-in here).
+        result = await run_in_threadpool(
+            ingest_document, db, corpus_id, file.filename or "untitled", raw_bytes
+        )
     except UnsupportedDocumentType as exc:
         raise HTTPException(
             status_code=415,

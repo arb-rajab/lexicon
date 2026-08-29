@@ -15,7 +15,9 @@ from lexicon.config import get_settings
 @lru_cache
 def _model() -> TextEmbedding:
     settings = get_settings()
-    return TextEmbedding(model_name=settings.embedding_model)
+    return TextEmbedding(
+        model_name=settings.embedding_model, cache_dir=settings.embedding_cache_dir
+    )
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:

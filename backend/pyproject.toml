@@ -28,6 +28,13 @@ dev = [
     "bandit>=1.7",
     "pip-audit>=2.7",
 ]
+# Session 7 (release readiness): the production ASGI server. Not part of
+# `dev` (that's the lint/test toolchain) and not part of the base
+# dependency set either — ../Dockerfile's dev image never needs it (bare
+# `uvicorn --reload`), only docker/Dockerfile.prod does.
+prod = [
+    "gunicorn>=23.0",
+]
 
 [build-system]
 requires = ["hatchling"]
