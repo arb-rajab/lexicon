@@ -6,7 +6,44 @@
 this is a single-operator, self-hostable flagship where the deep evidence
 budget is deliberately spent on proving the two claims the project exists to
 demonstrate (grounded answers, tested security controls), not on operational
-maturity. Reasons will be finalised once the deep-phase work lands.
+maturity.
+
+**Deep-phase status confirmed, Session 7, against the real evidence
+produced through this session — not reaffirmed by default:**
+
+- **Phase 1 (Discovery & Planning) earns Deep cleanly and is unaffected by
+  ADR-0004.** Session 0's ledger (`00a-ledger-confirmation.md`) named this
+  phase deep because the project's central design question — "why RAG at
+  all" — needed real reasoning, not assumption. It got more than reasoning:
+  a real, executed feasibility spike against real infrastructure that
+  surfaced two measured findings (AND-semantics keyword search at 0%
+  recall@3; similarity-only refusal unsafe, 0.701 versus 0.706-0.848) that
+  materially changed the architecture (ADR-0001) rather than merely
+  illustrating a decision already made. This evidence does not depend on
+  which LLM tier the project later runs — retrieval and its own spike
+  never call an LLM provider — so ADR-0004 leaves this phase's deep status
+  entirely untouched.
+- **Phase 5 (Verification & Testing) earns Deep, but on a narrower basis
+  than Session 0's ledger originally anticipated, and that narrowing must
+  be stated rather than smoothed over.** The ledger named this phase deep
+  because "every answer is citation-backed or refused" and
+  "prompt-injection defences are tested as real security controls" are
+  claims only verification evidence can support. Real verification
+  evidence was in fact produced — a golden-dataset-driven, CI-gated
+  evaluation harness (16 cases, real retrieval recall@3 at 9/9) and an
+  18-document adversarial injection corpus with code-level, tier-independent
+  containment guarantees (18/18) — and the engineering rigor behind both
+  (methodology design, honest self-check numbers, CI gating, a documented,
+  deterministic stub substrate) is genuinely deep work, not thin evidence
+  padded with caveats. What ADR-0004 changes is what that evidence is
+  *of*: it proves the harness and the hardening design are sound and would
+  produce trustworthy numbers against a real model — it does not and
+  permanently cannot prove real refusal quality, real citation accuracy,
+  or real injection resistance, because no real model has ever been run.
+  Depth here means "the methodology and structural proof are rigorous,"
+  not "the original quality claim was measured" — the same distinction
+  ADR-0004's own Consequences section requires this row to make, kept
+  intact through Session 7.
 
 | Phase | Depth | Evidence | Location |
 |---|---|---|---|
@@ -18,7 +55,7 @@ maturity. Reasons will be finalised once the deep-phase work lands.
 | 5. Verification & Testing | **Deep** | **Produced, Session 5 (2026-08-27, reframed per `docs/adr/ADR-0004-real-llm-verification-descoped.md`):** a committed, hand-authored golden dataset (`backend/tests/eval/golden_dataset.py`, 16 cases — 9 legitimate queries reused from the Session 1 spike, 5 fresh adjacent-but-wrong cases each against a different corpus document plus Session 1's canonical OAuth2/Google case, and 2 out-of-corpus negative controls) driven through the real pipeline via `llm.factory.get_llm_client()` — the identical seam the application and `test_proof_session1_oauth2_case.py` already use, never a hardcoded tier (`backend/tests/eval/run_evaluation.py`'s "THE SWAP POINT" docstring names the exact line). Three metrics computed for real from an actual run against this environment's `StubLLMClient` tier, 2026-08-27: **retrieval recall@3, 9/9 (100%) — real for any tier, retrieval never calls an LLM provider**; refusal-correctness, 11/16 (68.75%); citation-accuracy, 7/10 (70%, of cases actually answered). The latter two are stub-tier self-checks, not quality measurements — the mismatches concretely demonstrate Session 1 Finding 2's exact failure shape (the crude keyword-overlap heuristic false-positived on 3 of 5 adjacent-but-wrong cases spanning 3 different documents, and false-negatived on 2 genuinely correct queries), which is itself evidence the golden dataset has real discriminating power rather than being all easy cases. All three metrics are CI-gated (`ci.yml`'s `pytest -q` step via `test_evaluation_harness.py`, plus a dedicated step that prints the full report unconditionally) against thresholds set exactly at this measured baseline, so any future regression in either the pipeline's wiring or this dataset's own correctness fails the build immediately. **The stub-tier-vs-real-quality distinction is enforced in the harness's own printed output**, not only in this row or in ADR-0004 — every report line the harness renders opens with a banner naming the active tier and, for the stub tier, states plainly that the numbers are not a measurement of real model quality (extracted, Session 6, into `tests/support/tier_caveat.py`'s `render_tier_caveat`, reused by both harnesses), and `test_evaluation_harness.py` asserts that banner text is actually present rather than trusting it stays there by convention. Session 5's three headline numbers (9/9, 11/16, 7/10) were re-run 3 times total (once at original measurement, twice more, Session 6) with byte-identical results each time, including identical mismatch case lists — confirming `StubLLMClient`'s determinism empirically, not merely by code inspection, before Session 6 trusted the zero-slack gate as reproducible rather than a one-off measurement. **Deliberately not built this session, scope narrowed by the project owner:** the full four-category adversarial injection corpus (`06-security-threat-model.md`) — tracked as a real, explicit gap in `07-testing-strategy.md`'s Known gaps; built Session 6, see below. | `backend/tests/eval/` (`golden_dataset.py`, `metrics.py`, `run_evaluation.py`, `test_evaluation_harness.py`), `docs/project-memory/07-testing-strategy.md`, `docs/adr/ADR-0004-real-llm-verification-descoped.md`, `.github/workflows/ci.yml` |
 | **5a. Session 6 — adversarial injection corpus** | — | **Produced, Session 6 (2026-08-27):** a committed, 18-case adversarial corpus (`docs/security/adversarial-corpus/documents/`, real markdown documents — 4 direct-override, 4 authority-spoofing, 6 verifier-always-true, 4 Category-4 negative controls) ingested through the real pipeline into its own isolated corpus (`backend/tests/security/`), proving two structurally different claims, kept explicitly separate in the harness's own printed report (`run_adversarial_evaluation.py`): **(1) application-layer enforcement is real, checked, zero-slack, and holds regardless of LLM tier** — ADR-0003 item 3's `injection_suspected → enforced_entailed=False` override, checked against real `CITATION_VERDICT` database rows (0 violations across 18 real pipeline runs), and ADR-0003 items 1-2's structural delimiting, checked against all 18 documents' actual ingested content (18/18 held) — both are properties of `pipeline/query_pipeline.py` and `llm/prompts.py`'s code, provable at any tier because no model judgment is involved. **(2) `StubLLMClient`'s own crude, hardcoded marker-detection is a stub-tier self-check only** — 18/18 matched this corpus's hand-authored predictions (it caught every case matching its ten hardcoded phrases and missed every case deliberately phrased to avoid them, including one character-spaced obfuscation of a known marker), and its Category-4 false-positive rate measured 2/4 (50%) on documents that genuinely quote or discuss real attack phrases as their subject matter. Both claim groups are CI-gated (`ci.yml`'s `pytest -q` step via `test_adversarial_corpus.py`, plus a dedicated step printing the full report unconditionally), the hard invariants at zero-slack always, the stub-tier numbers at their measured baseline. **What this explicitly does and does not prove, stated with the same precision as Session 5's own distinction:** it proves the enforced gate cannot be bypassed by document content alone, at the code level — it does not and cannot prove a real model's `injection_suspected` judgment would recognize a novel attack phrasing or distinguish genuine discussion of injection from an actual attempt, which remains ADR-0004's permanent, unchanged gap. | `docs/security/adversarial-corpus/` (`README.md`, `documents/`), `backend/tests/security/` (`adversarial_dataset.py`, `adversarial_corpus_loader.py`, `run_adversarial_evaluation.py`, `test_adversarial_corpus.py`), `backend/tests/support/tier_caveat.py`, `docs/project-memory/06-security-threat-model.md`, `docs/project-memory/07-testing-strategy.md`, `.github/workflows/ci.yml` |
 | 6. Release & Deployment | Baseline | CI pipeline (lint, type-check, security scan, tests) and `docker-compose.yml` proven to boot (Sessions 0/4). **Extended, Session 7 (2026-08-27/28, release readiness):** real production-shaped images for both services — `backend/docker/Dockerfile.prod` (gunicorn + uvicorn workers, non-root user, no dev reload, the ingestion embedding model pre-warmed into the image at build time) and `frontend/docker/Dockerfile.prod` (Next.js "standalone" output, non-root user) — plus `docker-compose.prod.yml` wiring them to the same real Postgres+pgvector/Redis/MinIO images `docker-compose.yml` already uses, on distinct host ports so both stacks can run side by side. **Proven locally, not assumed:** both images build; all five services reach Docker's own `healthy` status; the full ingest → query → answer/refusal pipeline was run for real through these production images (all 8 Session 1 spike-corpus documents ingested, one legitimate query answered with a correct citation, one adjacent-but-wrong query correctly refused with `verification_failed` — same stub-tier-vs-real-quality caveat as every session since ADR-0004); the ADR-0001/Session-4 credential-swap claim was re-confirmed against this exact production image specifically (`ANTHROPIC_API_KEY` unset → `StubLLMClient`, set → `AnthropicLLMClient`, same image, no rebuild). **Three real bugs were found and fixed while producing that evidence, none visible under the dev image or existing CI:** an event-loop-blocking bug in `api/documents.py`'s upload handler that gunicorn's worker-heartbeat supervision turned into a hard crash (fixed via `run_in_threadpool`); a live first-request HuggingFace model download compounding it (fixed by baking the model into the image); and a Next.js-standalone-plus-Docker-HOSTNAME-injection bug that left the frontend container permanently reporting `unhealthy` despite serving real traffic correctly (fixed by pinning `HOSTNAME=0.0.0.0`). Structured JSON operational logging (`logging_config.py`) and a real `/health`-vs-`/ready` liveness/readiness split (the latter backed by a real Postgres check) were added — explicitly distinguished from the `QUERY_LOG`/`RETRIEVED_CHUNK`/`CITATION_VERDICT` audit trail (ADR-0002), which this session's own initial task framing had conflated with "structured logging" already existing; that assumption is corrected in `logging_config.py`'s own docstring and in `08-deployment-and-operations.md`. TLS was deliberately not added, with reasoning recorded in `08-deployment-and-operations.md` (lexicon, unlike privacy-forge, has never had a public-demo-instance decision that would make proving HTTPS termination meaningful). Metrics, tracing, dashboards, and alerting remain genuinely unbuilt future work, stated as such, not silently assumed. | `.github/workflows/ci.yml`, `docker-compose.yml`, `docker-compose.prod.yml`, `backend/docker/Dockerfile.prod`, `backend/docker/entrypoint.prod.sh`, `frontend/docker/Dockerfile.prod`, `backend/src/lexicon/logging_config.py`, `backend/src/lexicon/main.py`, `docs/project-memory/08-deployment-and-operations.md` |
-| 7. Operations & Maintenance | Light | Not yet produced | `docs/project-memory/08-deployment-and-operations.md` |
+| 7. Operations & Maintenance | Light | **Extended, Session 7 (2026-08-27/28):** real content in every section of `08-deployment-and-operations.md` — deployment procedure including the three real bugs found and fixed, TLS-omission reasoning, and an honest Observability split (structured JSON logs and a real `/health`/`/ready` split exist today; metrics, tracing, log aggregation, dashboards, and alerting are named explicitly as unbuilt future work, not silently assumed). Deliberately kept at Light depth, not promoted to Deep — Rule D2's two-slot deep budget (Discovery, Verification/Testing) was not reopened to accommodate this session's real content. | `docs/project-memory/08-deployment-and-operations.md` |
 | 8. Retirement & Handover | Light | Not yet produced | `docs/project-memory/14-maintenance-and-retirement.md` |
 
 ## Why some phases are light
@@ -28,5 +65,15 @@ repository: the deep-evidence budget (Rule D2, exactly two phases) is
 committed to Discovery and Verification/Testing, because those two phases
 carry the evidence for this project's actual claims — grounded, refusal-safe
 answers, and prompt-injection defences that are tested rather than assumed.
-Full reasoning to be recorded once Session 1 and the Verification/Testing
-deep-phase work land.
+
+This is not the same as "unbuilt through neglect." Phase 7 has real,
+if narrow, content — `08-deployment-and-operations.md` documents actual
+production-shaped deployment procedure, real bugs found running it, and an
+honest split between what observability exists today (structured JSON
+logs, a real `/health`/`/ready` split) and what doesn't yet (metrics,
+tracing, dashboards, alerting) — but it was never a candidate for this
+project's fixed two-slot deep budget, and Session 7 did not spend outside
+that budget to make it one. Phase 8 (`14-maintenance-and-retirement.md`)
+remains genuinely unproduced beyond template scaffolding; no session has
+claimed otherwise. Both stay Light by the same Rule D2 discipline that
+keeps Discovery and Verification/Testing at exactly two, not three.
