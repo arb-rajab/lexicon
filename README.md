@@ -1,12 +1,13 @@
 # lexicon
 
-> **Status:** Session 7 complete — ingestion, hybrid retrieval,
+> **Status:** **v1.0.0 tagged** — ingestion, hybrid retrieval,
 > generation/verification pipeline, injection hardening, evaluation
 > harness, and a production-shaped local deployment are all real and
 > tested. **Real LLM provider verification is permanently descoped by
 > deliberate choice ([ADR-0004](docs/adr/ADR-0004-real-llm-verification-descoped.md))**
-> — see [`docs/CASE-STUDY.md`](docs/CASE-STUDY.md) for the full account of
-> what that means and what it cost. See
+> — that boundary is part of what v1.0.0 honestly is, not omitted from the
+> release. See [`docs/CASE-STUDY.md`](docs/CASE-STUDY.md) for the full
+> account of what that means and what it cost. See
 > [`docs/project-memory/12-session-handoff.md`](docs/project-memory/12-session-handoff.md)
 > for session-by-session state.
 
@@ -62,8 +63,12 @@ pgvector · Redis · S3-compatible storage (MinIO).
 
 ## Project status
 
-This repository is built through a session-based workflow. Current phase:
-**Session 7 (Release Readiness) — complete.**
+This repository is built through a session-based workflow. **v1.0.0 is
+tagged** — the flagship's "shipped" milestone per this portfolio's own
+sequencing rule (a tagged release, a real deployment/demo proof, a case
+study, and a complete project memory pack). See
+[`docs/project-memory/12-session-handoff.md`](docs/project-memory/12-session-handoff.md)
+for the exact, current tagging status.
 
 Full portfolio context: this is a flagship repository in a broader
 public/private software portfolio. See `docs/project-memory/` for the
