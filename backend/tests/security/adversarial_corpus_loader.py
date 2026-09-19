@@ -21,7 +21,7 @@ ADVERSARIAL_CORPUS_DIR = (
 
 
 def load_adversarial_corpus(db: Session, filenames: tuple[str, ...]) -> uuid.UUID:
-    corpus = models.Corpus(name="session6-adversarial-injection-corpus")
+    corpus = models.Corpus(name="session6-adversarial-injection-corpus", owner_id="test-fixture")
     db.add(corpus)
     db.commit()
     db.refresh(corpus)

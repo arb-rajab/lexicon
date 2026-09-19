@@ -29,6 +29,23 @@ authenticated request; there is no unauthenticated/public surface in v1
 (unlike `privacy-forge`'s public DSAR portal — this product has no
 equivalent external, unauthenticated actor per its stakeholder model).
 
+**T-04 enforcement, added this session (`06-security-threat-model.md`):**
+this API had grown into a genuinely multi-corpus surface (`POST`/`GET
+/api/v1/corpora` operate over a collection, not a single per-deployment
+corpus) with **zero** authorisation between a caller and a `corpus_id` —
+any authenticated-looking request could read, query, or modify any
+corpus. Closed by `lexicon.api.auth`/`lexicon.api.ownership`: every
+request must carry an `X-User-Id` header (missing/blank → `401`), and
+every `{corpus_id}`-scoped endpoint checks that header's value against
+`CORPUS.owner_id`, set from the same header at corpus-creation time
+(mismatch → `403`; nonexistent corpus → `404`). This still does not invent
+instance-level authentication — `X-User-Id` is trusted the way a
+reverse-proxy/gateway-injected identity header would be in production
+(see `lexicon/api/auth.py`'s module docstring); a real deployment
+terminates and verifies it at that boundary before traffic reaches this
+service. `GET /api/v1/corpora` is now scoped to the caller's own
+corpora, not the whole deployment's.
+
 ## Endpoints / schema summary
 
 ### Corpus management
@@ -153,10 +170,21 @@ considered, which is not planned.
   set" assumption (`01-scope-and-non-goals.md`) — pagination there is
   deferred, not designed away permanently.
 - **Rate limits:** per-corpus query rate limiting (NFR-007, Redis-backed),
-  returned as `429` with a `Retry-After` header. No rate limit on ingestion
-  endpoints in v1 beyond the implicit queue-depth backpressure of the
-  ingestion worker — ingestion doesn't carry the same per-request LLM cost
-  risk that made query-path rate limiting a real cost-control requirement.
+  returned as `429` with a `Retry-After` header — **implemented this
+  session** (`lexicon.api.rate_limit`, T-05), alongside a second, separate
+  daily per-corpus spend-ceiling circuit breaker (also `429`, distinct
+  error code `spend_ceiling_exceeded`, same `Retry-After` contract): the
+  per-minute limit stops a fast burst, the daily ceiling stops
+  slow-and-steady abuse that never trips it. Both gate the query endpoint
+  *before* any real LLM call, and both fail open on a Redis outage
+  (an availability tradeoff, not a correctness invariant — see the
+  module's docstring). No rate limit on ingestion endpoints in v1 beyond
+  the implicit queue-depth backpressure of the ingestion worker —
+  ingestion doesn't carry the same per-request LLM cost risk that made
+  query-path rate limiting a real cost-control requirement; it does now
+  have a `413` file-size bound (T-06, `lexicon.api.documents`), also
+  implemented this session — previously documented in this file but not
+  enforced anywhere in code.
 
 ## Events published/consumed
 

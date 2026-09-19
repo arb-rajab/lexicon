@@ -73,7 +73,11 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         error = detail
     else:
         error = {"code": "http_error", "message": str(detail), "field": None}
-    return JSONResponse(status_code=exc.status_code, content={"error": error})
+    # exc.headers (e.g. the 429 Retry-After header T-05's rate-limit/
+    # spend-ceiling controls set, api/query.py) is real Starlette
+    # HTTPException state — dropping it here would silently discard any
+    # header a route deliberately attached to its error response.
+    return JSONResponse(status_code=exc.status_code, content={"error": error}, headers=exc.headers)
 
 
 @app.exception_handler(RequestValidationError)

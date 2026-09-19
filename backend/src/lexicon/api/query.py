@@ -1,13 +1,15 @@
 import uuid
 
+import redis
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from lexicon.api.deps import get_db, get_llm
-from lexicon.api.errors import not_found
+from lexicon.api.auth import CallerContext, get_caller
+from lexicon.api.deps import get_db, get_llm, get_redis
+from lexicon.api.ownership import require_owned_corpus
+from lexicon.api.rate_limit import RateLimitExceeded, SpendCeilingExceeded, enforce_query_limits
 from lexicon.api.schemas import CitationOut, QueryRequest, QueryResponse
 from lexicon.config import get_settings
-from lexicon.db import models
 from lexicon.llm.base import LLMClient, LLMProviderError
 from lexicon.pipeline.query_pipeline import run_query_pipeline
 
@@ -20,10 +22,10 @@ def ask_question(
     payload: QueryRequest,
     db: Session = Depends(get_db),
     llm: LLMClient = Depends(get_llm),
+    caller: CallerContext = Depends(get_caller),
+    redis_client: redis.Redis = Depends(get_redis),
 ) -> QueryResponse:
-    corpus = db.get(models.Corpus, corpus_id)
-    if corpus is None:
-        raise not_found("Corpus not found")
+    require_owned_corpus(db, corpus_id, caller)
 
     settings = get_settings()
     # T-05 cost-abuse control (06-security-threat-model.md): a maximum
@@ -39,6 +41,32 @@ def ask_question(
                 "field": "question",
             },
         )
+
+    # T-05's other two layers: a per-corpus request-rate limit and a daily
+    # spend ceiling, both enforced here — before the pipeline call below
+    # makes any real LLM request — so a rejected query here costs nothing.
+    try:
+        enforce_query_limits(redis_client, settings, corpus_id)
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "rate_limited",
+                "message": "Query rate limit exceeded for this corpus",
+                "field": None,
+            },
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+    except SpendCeilingExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "spend_ceiling_exceeded",
+                "message": "Daily query spend ceiling reached for this corpus",
+                "field": None,
+            },
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
 
     try:
         result = run_query_pipeline(

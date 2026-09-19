@@ -39,6 +39,14 @@ class Corpus(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(Text, nullable=False)
+    # T-04 (06-security-threat-model.md): the caller identity
+    # (lexicon.api.auth.CallerContext.user_id, sourced from the X-User-Id
+    # header) that created this corpus. Every corpus_id-scoped endpoint
+    # (lexicon.api.ownership.require_owned_corpus) checks the caller
+    # against this column before allowing access to the corpus's documents,
+    # queries, or audit trail — closing the IDOR gap this threat was named
+    # for but that had no enforcement until this column existed.
+    owner_id: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     documents: Mapped[list["Document"]] = relationship(
