@@ -1,8 +1,11 @@
+import { CorpusList } from "@/components/CorpusList";
+
 export default function Home() {
   return (
     <main>
       <h1>lexicon</h1>
-      <p>Session 0 — governance and repository skeleton only. No chat UI yet.</p>
+      <p className="muted">Grounded document Q&amp;A — every answer is citation-backed or refused.</p>
+      <CorpusList />
     </main>
   );
 }

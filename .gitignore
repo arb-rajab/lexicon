@@ -18,6 +18,7 @@ node_modules/
 frontend/.next/
 frontend/out/
 frontend/coverage/
+frontend/*.tsbuildinfo
 
 # Claude Code local runtime state
 .claude/
