@@ -27,6 +27,24 @@ deferred to `08-deployment-and-operations.md` as an operator concern — not
 tracked here as a functional requirement, consistent with the MVP boundary's
 "minimal web UI... enough to demonstrate the invariant end-to-end" framing.
 
+**Later-session correction, named explicitly rather than left stale:** the
+"single-corpus, single-deployment tool" framing above never matched what
+Session 4 actually built — `POST`/`GET /api/v1/corpora` (`05-api-contracts.md`)
+is a real multi-corpus collection endpoint, not a single per-deployment
+resource, and it shipped with zero authorisation between a caller and a
+`corpus_id` (06-security-threat-model.md's T-04, named as a requirement in
+that same session but left unenforced). A later session closed that gap
+with real per-corpus ownership scoping (`lexicon.api.ownership`, keyed on
+a trusted `X-User-Id` caller identity) — see `05-api-contracts.md`'s
+Authentication and authorisation model section and T-04's status in
+`06-security-threat-model.md`. This still isn't a multi-*role*
+authorisation model (the corpus-owner/knowledge-worker distinction in the
+table above still isn't enforced as two different permission levels
+within one shared corpus) — it's row-level ownership scoping between
+otherwise-independent corpora, closing an IDOR, not the broader
+multi-tenant RBAC system this section originally, and still, states is
+out of scope.
+
 ## User stories with acceptance criteria
 
 ### Ingestion

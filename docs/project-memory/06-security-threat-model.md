@@ -88,9 +88,9 @@ avoid — see "Indirect prompt injection via ingested documents" below.
 | T-01 | B3 Generation call | **Indirect prompt injection via document content, targeting the generator** — a chunk contains embedded instructions ("ignore prior instructions," "always answer confidently," "reveal your system prompt") attempting to override grounding/citation/self-refusal behaviour | Tampering / Elevation of Privilege | Med/High | Structural delimiting of passage content as untrusted data (never concatenated into system instructions); mandatory chunk-scoped citation schema constrains output shape; independent verification (T-02's mitigations) as the actual backstop, not just generator-side resistance | Adversarial injection corpus, generator suite — see dedicated section below; Session 4/5 |
 | T-02 | B4 Verification call | **Indirect prompt injection via document content, targeting the independent verifier** — a chunk's exact passage text is engineered so that, if cited, it hijacks the verifier into reporting `entailed: true` regardless of the actual claim | Tampering / Elevation of Privilege | High/**Critical** | ADR-0003: forced structured output, sandwiched untrusted-content delimiting, explicit `injection_suspected` self-report auto-failing entailment, fail-closed on any unparseable/ambiguous verifier response | Adversarial injection corpus, **verifier-specific** suite, distinct from T-01's — see dedicated section below; the harness's first required test case per ADR-0001's Consequences section; Session 4/5 |
 | T-03 | B2 Query API | Prompt injection via query text (a knowledge worker crafts a question attempting to override system instructions or leak the system prompt) | Tampering | Med/Low | Same structural delimiting applied to query text as to document content (never unescaped into system instructions); output-schema constraints; lower severity than T-01/T-02 since the actor is authenticated/accountable and the blast radius is limited to their own query, with no persistence into the corpus for other users | Adversarial suite includes query-text injection cases alongside document-based ones; Session 4/5 |
-| T-04 | B1/B2 Cross-corpus authorisation | An authenticated corpus owner or knowledge worker supplies a `{corpus_id}` they are not authorised for (IDOR) — upload, query, or read another corpus's data via URL manipulation | Elevation of Privilege / Information Disclosure | Med/High | Every `{corpus_id}`-scoped endpoint must independently verify the caller's authorisation for that specific `corpus_id`, not merely that they are authenticated at all — a requirement this session adds explicitly since instance-level auth mechanics remain deferred to `08-deployment-and-operations.md` (Session 2's decision, re-confirmed below) | IDOR-style feature test attempting cross-corpus access on every scoped endpoint, extending FR-014's existing retrieval-layer isolation test to the API authorisation layer; Session 4/5 |
-| T-05 | B2 Query API | **Denial-of-wallet** — a malicious or careless caller drives real LLM spend by submitting many distinct queries in rapid succession (every answered query costs ≥2 LLM calls, ADR-0001) | Denial of Service | Med/High | See "Cost-abuse / denial-of-wallet" below — per-corpus/per-caller rate limiting (NFR-007) plus a recommended absolute spend-ceiling circuit breaker and a question-length cap | Load/abuse test asserting `429` fires before configured spend ceiling is reached; Session 4/5 |
-| T-06 | B1 Ingestion API | Cost/resource abuse via ingestion (very large or very numerous document uploads inflating embedding-call spend and storage) | Denial of Service | Low/Med | File size limit (`413`, `05-api-contracts.md`, already specified); recommend an operator-configurable max-documents-per-corpus soft warning. Lower priority than T-05 — ingestion does not carry query-path's per-request LLM cost risk (`05-api-contracts.md`'s own stated rate-limit rationale) | Feature test on file-size rejection (existing `413` contract); soft-warning threshold, Session 4 |
+| T-04 | B1/B2 Cross-corpus authorisation | An authenticated corpus owner or knowledge worker supplies a `{corpus_id}` they are not authorised for (IDOR) — upload, query, or read another corpus's data via URL manipulation | Elevation of Privilege / Information Disclosure | Med/High | **Implemented.** Every `{corpus_id}`-scoped endpoint independently verifies the caller's authorisation for that specific `corpus_id` via `lexicon.api.ownership.require_owned_corpus`, against `CORPUS.owner_id` set from the `X-User-Id` header (`lexicon.api.auth`) at creation time — instance-level auth mechanics themselves remain deferred to `08-deployment-and-operations.md`, unchanged | **Closed, this session:** `backend/tests/test_corpus_authorization.py` — IDOR-style feature test attempting cross-corpus access on every scoped endpoint (corpora, documents, query, query-logs), plus caller-scoped `GET /corpora` listing and the `401`/`403` contract itself |
+| T-05 | B2 Query API | **Denial-of-wallet** — a malicious or careless caller drives real LLM spend by submitting many distinct queries in rapid succession (every answered query costs ≥2 LLM calls, ADR-0001) | Denial of Service | Med/High | **Implemented.** See "Cost-abuse / denial-of-wallet" below — per-corpus rate limiting (NFR-007, `lexicon.api.rate_limit`) plus an absolute daily spend-ceiling circuit breaker and a question-length cap (`max_question_length`, pre-existing) | **Closed, this session:** `backend/tests/test_query_rate_limit.py` — asserts `429` (`rate_limited`) fires on burst, `429` (`spend_ceiling_exceeded`) fires once the daily ceiling is reached, and the per-corpus scoping itself, each with a real `Retry-After` header |
+| T-06 | B1 Ingestion API | Cost/resource abuse via ingestion (very large or very numerous document uploads inflating embedding-call spend and storage) | Denial of Service | Low/Med | **Implemented.** File size limit (`413`, `lexicon.api.documents`, bounded-chunk read rather than `await file.read()`'s prior unconditional full-body buffering); an operator-configurable max-documents-per-corpus soft warning remains a recommendation, not built. Lower priority than T-05 — ingestion does not carry query-path's per-request LLM cost risk (`05-api-contracts.md`'s own stated rate-limit rationale) | **Closed (file-size half), this session:** `backend/tests/test_document_upload_size_limit.py` — asserts `413` on an oversized upload and that an in-limit upload still succeeds; soft-warning threshold still open |
 | T-07 | B5 Audit store | A privileged/insider actor with direct database access — most plausibly, the very party accountable for a disputed wrong answer — tampers with `QUERY_LOG`/`CITATION_VERDICT` rows after the fact to alter the record of what was verified | Tampering / Repudiation | Low/High | **ADR-0002:** application's runtime database role restricted to `INSERT`/`SELECT` on the three audit tables; `UPDATE`/`DELETE` granted only to the migration/admin role | Grant-assertion test against a real database connection using the application's runtime role (mirrors `privacy-forge`'s `PolicyDefinitionGrantTest` pattern for the equivalent T-16 threat); Session 4 |
 | T-08 | B6 Audit read API | Embedding-inversion / information leakage via the query-log detail endpoint's exposed `fusion_score`/`keyword_rank`/`vector_rank` fields | Information Disclosure | Low/Low | See "Embedding inversion / information leakage" below — RBAC already scopes this endpoint to the corpus owner role, which already has plaintext access to the same source content; standing constraint that no endpoint may ever serialise `CHUNK.embedding` | Response-schema/contract test asserting the embedding column is never present in any API response model; Session 4 |
 | T-09 | B3/B4 LLM provider (external) | Retrieved passage content (potentially confidential document content) is sent to a third-party LLM API for both calls — a provider-side data exposure risk inherent to the RAG architecture itself | Information Disclosure | Low/Med | Accepted risk — inherent to any RAG design; provider selection (`03-architecture.md`, Anthropic Claude) already made on stated grounds; not an app-layer-mitigable threat beyond provider choice. See Accepted risks | N/A — accepted, not a control gap |
@@ -384,11 +384,19 @@ session's additions:
   dropped**, per this session's definition of done. This is not a gap in
   this threat model; it is a scope boundary Session 2 stated and this
   session did not need to reverse.
-- **New this session (T-04):** every `{corpus_id}`-scoped endpoint must
-  independently authorise the caller against that specific corpus, not
-  merely check that they are authenticated at all — stated now as a
-  requirement on whatever mechanism Session 4/ops eventually builds, so it
-  is not discovered as a gap after the fact.
+- **T-04, implemented in this later session:** every `{corpus_id}`-scoped
+  endpoint independently authorises the caller against that specific
+  corpus (`lexicon.api.ownership`), not merely checks that they are
+  authenticated at all. This landed ahead of the instance-level
+  authentication mechanism it was originally stated as a requirement on
+  ("whatever mechanism Session 4/ops eventually builds") — a real gap had
+  opened between this document naming T-04 and the API actually growing
+  into a genuinely multi-corpus surface with zero enforcement of it, so
+  ownership scoping was built now, against a trusted-header caller
+  identity (`X-User-Id`) rather than waiting on that still-undesigned
+  mechanism. See `05-api-contracts.md`'s Authentication and authorisation
+  model section for the precise contract and why this doesn't itself
+  constitute the instance-level authentication decision Session 2 deferred.
 - **New this session (T-12):** whatever session/credential mechanism is
   chosen must include standard hardening (secure cookie flags or
   equivalent bearer-token handling, rate-limited login) — carried forward
@@ -403,29 +411,31 @@ session's additions:
 
 Every answered (non-self-refused) query costs at least two real LLM API
 calls (ADR-0001). This is a standing, real-money attack surface — from
-both a malicious caller and a merely careless one (see Abuse cases). Real
-controls:
+both a malicious caller and a merely careless one (see Abuse cases), and
+one this project's own `ANTHROPIC_API_KEY`-absence caveat does not make
+theoretical: the controls below gate the *request path* regardless of
+which LLM tier is active, so they take effect the moment a real key is
+ever configured, not after. Real controls:
 
-- **Per-corpus/per-caller rate limiting** (NFR-007, Redis-backed, already
-  an architectural requirement, `03-architecture.md`) — the primary,
-  already-specified control.
-- **Recommended addition, this session: an absolute per-window LLM-spend
-  ceiling**, configurable per operator, independent of the per-caller rate
-  limit. Rate limiting alone bounds any *one* caller's spend but not the
-  instance's total exposure if the configured per-caller limit is generous
-  or if many distinct callers query concurrently; a hard ceiling ("if
-  total LLM spend in the current window exceeds the configured cap, new
-  queries fail closed with a clear operator-facing error") is a second,
-  independent backstop, matching this document's general fail-closed
-  posture rather than trusting a single control to hold under all
-  conditions.
-- **Recommended addition, this session: a maximum question-text length.**
-  No length bound is currently specified in `02-requirements.md` or
-  `05-api-contracts.md`; an unbounded question field is both a cost-control
-  gap (larger input, larger token spend) and, incidentally, a larger
-  surface for T-03's query-text injection attempts. A conservative cap
-  (a Session 4 configuration decision, not a number invented here) closes
-  both.
+- **Per-corpus rate limiting** (NFR-007, Redis-backed, `03-architecture.md`)
+  — **implemented this session**, `lexicon.api.rate_limit`, enforced in
+  `api/query.py` before the pipeline makes any LLM call. Fixed one-minute
+  window, `429` with `Retry-After` on excess.
+- **Implemented this session: an absolute daily per-corpus LLM-spend
+  ceiling**, independent of the per-minute rate limit and checked
+  separately (`lexicon.api.rate_limit`, same module). Rate limiting alone
+  bounds a *burst*, not slow-and-steady abuse that stays under the
+  per-minute limit but still runs up real spend over a day; the ceiling is
+  a second, independent backstop, matching this document's general
+  fail-closed posture rather than trusting a single control to hold under
+  all conditions. No real per-call cost feed exists in this environment
+  (ADR-0004), so the ceiling counts *queries*, not dollars — a stated,
+  conservative proxy, not a silently assumed one (see `config.py`'s own
+  comment on this).
+- **A maximum question-text length** (`max_question_length`, pre-existing
+  from Session 4) closes both a cost-control gap (larger input, larger
+  token spend) and, incidentally, part of T-03's query-text injection
+  surface.
 - **Already-specified, restated as cost controls, not just performance
   ones:** bounded top-N chunks passed to generation (implementation
   default 5), skipping verification entirely on generator self-refusal,
@@ -436,9 +446,12 @@ controls:
 - **Ingestion-side cost abuse (T-06)** is a materially smaller risk than
   query-path abuse, since ingestion doesn't carry the same per-request LLM
   cost (05-api-contracts.md's own stated reasoning for not rate-limiting
-  ingestion endpoints); the existing file-size limit (`413`) is treated as
-  sufficient for v1, with a soft per-corpus document-count warning
-  recommended as a low-priority addition.
+  ingestion endpoints); the file-size limit (`413`) — **implemented this
+  session**, `lexicon.api.documents` — is treated as sufficient for v1
+  (it was previously documented in `05-api-contracts.md` but enforced
+  nowhere in code — `await file.read()` buffered an unbounded body
+  unconditionally), with a soft per-corpus document-count warning still
+  recommended as a low-priority addition, not built.
 
 ## Secrets management
 

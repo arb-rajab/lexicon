@@ -2,6 +2,11 @@
 -> query-log detail, through the real FastAPI app and real Postgres, with
 the stub LLM tier (no ANTHROPIC_API_KEY in the test environment, matching
 conftest.py's deliberate non-override of that).
+
+Every request carries X-User-Id (lexicon.api.auth) since T-04's ownership
+checks (lexicon.api.ownership) now require it — see
+test_corpus_authorization.py for the cross-corpus regression coverage
+itself.
 """
 
 from pathlib import Path
@@ -15,9 +20,13 @@ client = TestClient(app)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORS_MD = REPO_ROOT / "docs" / "spikes" / "session1-hybrid-retrieval" / "corpus" / "cors.md"
 
+AUTH_HEADERS = {"X-User-Id": "api-flow-user"}
+
 
 def test_full_ingest_and_query_flow_through_the_api(db) -> None:
-    create_resp = client.post("/api/v1/corpora", json={"name": "api-flow-test"})
+    create_resp = client.post(
+        "/api/v1/corpora", json={"name": "api-flow-test"}, headers=AUTH_HEADERS
+    )
     assert create_resp.status_code == 201
     corpus_id = create_resp.json()["id"]
 
@@ -25,17 +34,19 @@ def test_full_ingest_and_query_flow_through_the_api(db) -> None:
         upload_resp = client.post(
             f"/api/v1/corpora/{corpus_id}/documents",
             files={"file": ("cors.md", f, "text/markdown")},
+            headers=AUTH_HEADERS,
         )
     assert upload_resp.status_code == 201
     assert upload_resp.json()["status"] == "ready"
 
-    docs_resp = client.get(f"/api/v1/corpora/{corpus_id}/documents")
+    docs_resp = client.get(f"/api/v1/corpora/{corpus_id}/documents", headers=AUTH_HEADERS)
     assert docs_resp.status_code == 200
     assert docs_resp.json()[0]["chunk_count"] > 0
 
     query_resp = client.post(
         f"/api/v1/corpora/{corpus_id}/query",
         json={"question": "What class do I import to add CORS support in FastAPI?"},
+        headers=AUTH_HEADERS,
     )
     assert query_resp.status_code == 200
     body = query_resp.json()
@@ -50,7 +61,9 @@ def test_full_ingest_and_query_flow_through_the_api(db) -> None:
     else:
         assert body["refusal_reason"] in ("self_refused", "verification_failed")
 
-    detail_resp = client.get(f"/api/v1/corpora/{corpus_id}/query-logs/{body['query_log_id']}")
+    detail_resp = client.get(
+        f"/api/v1/corpora/{corpus_id}/query-logs/{body['query_log_id']}", headers=AUTH_HEADERS
+    )
     assert detail_resp.status_code == 200
     detail = detail_resp.json()
     assert detail["query_text"] == "What class do I import to add CORS support in FastAPI?"
@@ -58,12 +71,15 @@ def test_full_ingest_and_query_flow_through_the_api(db) -> None:
 
 
 def test_unsupported_document_type_returns_415(db) -> None:
-    create_resp = client.post("/api/v1/corpora", json={"name": "bad-upload-test"})
+    create_resp = client.post(
+        "/api/v1/corpora", json={"name": "bad-upload-test"}, headers=AUTH_HEADERS
+    )
     corpus_id = create_resp.json()["id"]
 
     resp = client.post(
         f"/api/v1/corpora/{corpus_id}/documents",
         files={"file": ("scan.pdf", b"%PDF-1.4 not a real pdf", "application/pdf")},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 415
     assert resp.json()["error"]["code"] == "unsupported_document_type"
@@ -73,17 +89,27 @@ def test_query_against_unknown_corpus_returns_404(db) -> None:
     resp = client.post(
         "/api/v1/corpora/00000000-0000-0000-0000-000000000000/query",
         json={"question": "anything?"},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 404
 
 
 def test_question_over_length_limit_returns_422(db) -> None:
-    create_resp = client.post("/api/v1/corpora", json={"name": "length-test"})
+    create_resp = client.post(
+        "/api/v1/corpora", json={"name": "length-test"}, headers=AUTH_HEADERS
+    )
     corpus_id = create_resp.json()["id"]
 
     resp = client.post(
         f"/api/v1/corpora/{corpus_id}/query",
         json={"question": "x" * 5000},
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 422
     assert resp.json()["error"]["code"] == "question_too_long"
+
+
+def test_missing_caller_identity_returns_401(db) -> None:
+    resp = client.post("/api/v1/corpora", json={"name": "no-auth-test"})
+    assert resp.status_code == 401
+    assert resp.json()["error"]["code"] == "unauthenticated"

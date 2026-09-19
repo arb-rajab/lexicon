@@ -61,6 +61,29 @@ class Settings(BaseSettings):
     # standard as NFR-007).
     max_question_length: int = 1000
 
+    # T-05's other two layers (06-security-threat-model.md: "per-corpus/
+    # per-caller rate limiting (NFR-007) plus a recommended absolute
+    # spend-ceiling circuit breaker"), both Redis-backed
+    # (lexicon.api.rate_limit), enforced in api/query.py before a query
+    # reaches the real generate/verify pipeline. Conservative placeholders,
+    # same honesty standard as max_question_length above — chosen against
+    # no real production traffic or provider pricing data.
+    query_rate_limit_per_minute: int = 20
+    # No real per-call cost feed exists in this environment (ADR-0004
+    # descopes real LLM usage from what this project can measure), so this
+    # is a query-count proxy for spend, not a real dollar figure — every
+    # query that reaches this gate is assumed to cost roughly the same
+    # (>=1 generation call plus >=1 verification call per cited claim,
+    # ADR-0001), a deliberate simplification stated here rather than
+    # silently assumed.
+    query_daily_spend_ceiling: int = 500
+
+    # T-06 cost-abuse control (06-security-threat-model.md) — closes
+    # 05-api-contracts.md's long-documented-but-previously-unenforced `413`
+    # response on the upload endpoint. Conservative placeholder, not
+    # measured against real document sizes this project ingests.
+    max_upload_size_bytes: int = 10 * 1024 * 1024
+
     corpus_owner_role: str = Field(default="corpus_owner")
     knowledge_worker_role: str = Field(default="knowledge_worker")
 

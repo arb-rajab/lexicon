@@ -53,7 +53,7 @@ class _RaisingLLMClient:
 
 
 def test_empty_corpus_refuses_with_no_candidates_retrieved(db: Session) -> None:
-    corpus = models.Corpus(name="empty")
+    corpus = models.Corpus(name="empty", owner_id="test-fixture")
     db.add(corpus)
     db.commit()
 

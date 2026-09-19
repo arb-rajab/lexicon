@@ -12,3 +12,10 @@ def not_found(message: str) -> HTTPException:
         status_code=404,
         detail={"code": "not_found", "message": message, "field": None},
     )
+
+
+def forbidden(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail={"code": "forbidden", "message": message, "field": None},
+    )

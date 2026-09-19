@@ -33,11 +33,27 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # T-05's rate-limit/spend-ceiling controls (api/rate_limit.py) are
+      # Redis-backed (NFR-007) — tests need a real instance for the same
+      # reason the Postgres service above exists (conftest.py's ground
+      # rule: no ADR-0002/NFR-001-style test is honest against a mock).
+      # Host port matches docker-compose.yml's dev port (6380) so
+      # config.py's REDIS_URL default resolves here with no override.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_ADMIN_URL: postgresql+psycopg://lexicon:lexicon@localhost:5433/lexicon
       DATABASE_URL: postgresql+psycopg://lexicon_app:lexicon_app_dev_only@localhost:5433/lexicon
       APP_DB_ROLE: lexicon_app
       APP_DB_PASSWORD: lexicon_app_dev_only
+      REDIS_URL: redis://localhost:6380/0
     steps:
       - uses: actions/checkout@v4
 

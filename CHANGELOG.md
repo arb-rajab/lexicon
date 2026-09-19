@@ -6,6 +6,29 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- **Closed a real, zero-authorisation IDOR gap across the entire
+  multi-corpus API (T-04)**: every `{corpus_id}`-scoped endpoint now
+  independently authorises the caller against that specific corpus
+  (`lexicon.api.ownership`, keyed on a trusted `X-User-Id` caller
+  identity, `lexicon.api.auth`) instead of accepting any syntactically
+  valid corpus UUID from any caller. `GET /api/v1/corpora` is now scoped
+  to the caller's own corpora. See
+  `docs/project-memory/12-session-handoff.md` (Session 11) and
+  `backend/tests/test_corpus_authorization.py` for the regression proof.
+- **Added Redis-backed per-corpus query rate limiting and a daily spend
+  ceiling (T-05)**, both enforced before the query pipeline makes any
+  real LLM call, returning `429` with a `Retry-After` header — closing a
+  denial-of-wallet gap the security threat model had named but left
+  unenforced.
+- **Added real `413` enforcement on document upload (T-06)**: the size
+  limit `05-api-contracts.md` has documented since Session 2 now actually
+  exists in code, via a bounded chunked read rather than the prior
+  unconditional full-body buffering.
+- Fixed a bug where the API's custom error-response handler silently
+  dropped any header (e.g. `Retry-After`) a route attached to an
+  `HTTPException`.
+
 ## [1.0.0] - 2026-08-29
 
 First tagged release. `lexicon` is a self-hostable, citation-or-refusal

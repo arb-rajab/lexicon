@@ -5,8 +5,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from lexicon.api.auth import CallerContext, get_caller
 from lexicon.api.deps import get_db
 from lexicon.api.errors import not_found
+from lexicon.api.ownership import require_owned_corpus
 from lexicon.api.schemas import (
     CitationVerdictOut,
     QueryLogDetailOut,
@@ -17,13 +19,6 @@ from lexicon.api.schemas import (
 from lexicon.db import models
 
 router = APIRouter(prefix="/api/v1/corpora/{corpus_id}/query-logs", tags=["query-logs"])
-
-
-def _require_corpus(db: Session, corpus_id: uuid.UUID) -> models.Corpus:
-    corpus = db.get(models.Corpus, corpus_id)
-    if corpus is None:
-        raise not_found("Corpus not found")
-    return corpus
 
 
 def _encode_cursor(created_at: datetime, log_id: uuid.UUID) -> str:
@@ -43,8 +38,9 @@ def list_query_logs(
     limit: int = Query(default=50, ge=1, le=200),
     cursor: str | None = None,
     db: Session = Depends(get_db),
+    caller: CallerContext = Depends(get_caller),
 ) -> QueryLogListOut:
-    _require_corpus(db, corpus_id)
+    require_owned_corpus(db, corpus_id, caller)
     q = db.query(models.QueryLog).filter_by(corpus_id=corpus_id)
     if cursor:
         created_at, log_id = _decode_cursor(cursor)
@@ -79,9 +75,12 @@ def list_query_logs(
 
 @router.get("/{query_log_id}", response_model=QueryLogDetailOut)
 def get_query_log(
-    corpus_id: uuid.UUID, query_log_id: uuid.UUID, db: Session = Depends(get_db)
+    corpus_id: uuid.UUID,
+    query_log_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: CallerContext = Depends(get_caller),
 ) -> QueryLogDetailOut:
-    _require_corpus(db, corpus_id)
+    require_owned_corpus(db, corpus_id, caller)
     log = (
         db.query(models.QueryLog)
         .filter_by(id=query_log_id, corpus_id=corpus_id)

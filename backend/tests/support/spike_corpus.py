@@ -35,7 +35,7 @@ SPIKE_SOURCE_FILES = (
 
 
 def load_spike_corpus(db: Session, filenames: tuple[str, ...] = SPIKE_SOURCE_FILES) -> uuid.UUID:
-    corpus = models.Corpus(name="session1-spike-corpus")
+    corpus = models.Corpus(name="session1-spike-corpus", owner_id="test-fixture")
     db.add(corpus)
     db.commit()
     db.refresh(corpus)
