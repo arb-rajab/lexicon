@@ -331,3 +331,136 @@ New from this session:
   in three places: `config.py`, both compose files, `.env.example`), not
   merely a suggestion — this is the single most load-bearing secret in the
   application now, more so than any credential before it.
+
+## Session completed
+
+- Session number and title: **Session 14 — Fix login timing side-channel
+  (username enumeration); rate-limit `/register`.**
+- Objective, as given at the start of this session: Session 13 built real
+  auth (T-12) but was re-inspected and found to have two smaller gaps left
+  in it: (1) `/login`'s `401 invalid_credentials` response, while
+  body-identical for an unknown username vs. a wrong password, differed
+  measurably in *timing* between the two — the PBKDF2 comparison only ran
+  when a matching user row existed — which is a classic username-
+  enumeration side-channel and directly undercut this codebase's own
+  documented "no enumeration" claim; (2) `/register` had no rate limiting
+  at all, an open account-creation endpoint with no throttle. Ground rule:
+  fix both, correct the "no enumeration" doc claim if it doesn't hold in
+  full, don't touch the core auth mechanism (PBKDF2/session tokens)
+  itself. Status: **complete**.
+
+## Work completed
+
+- **Login timing side-channel closed**
+  (`backend/src/lexicon/api/auth_routes.py`): a fixed dummy password hash
+  (`_DUMMY_PASSWORD_HASH`, same `pbkdf2_sha256$<iterations>$...` format as
+  a real stored hash, computed once at import time) is now compared
+  against whenever the submitted username doesn't match a row, so
+  `verify_password`'s ~600,000-iteration PBKDF2 comparison always runs
+  exactly once per login attempt regardless of outcome — the two cases
+  now cost the same, not just return the same body.
+- **`/register` rate-limited**
+  (`backend/src/lexicon/api/rate_limit.py:enforce_register_rate_limit`,
+  wired into `auth_routes.register`): a **global**, instance-wide 5-minute
+  bucket, not per-submitted-username like login's limiter — the identity
+  being throttled here doesn't exist yet, so a per-username key would be
+  trivially evaded by varying the username on every request. Same
+  fail-open-on-Redis-outage posture as every other control in this module.
+  New setting `register_rate_limit_per_5_minutes` (default `20`,
+  conservative placeholder, same honesty standard as this project's other
+  thresholds), new `REGISTER_RATE_LIMIT_PER_5_MINUTES` env var
+  (`.env.example`).
+- **Docs corrected, not just re-asserted**: `05-api-contracts.md`'s
+  "no username enumeration" claim was accurate as stated (scoped to
+  `/login`'s response body) but incomplete — it didn't call out that the
+  guarantee also depends on timing, which the code didn't actually
+  provide until this session. Rewrote that section to state the timing
+  fix explicitly and to draw an explicit line around `/register`: a `409
+  username_taken` response is an inherent, accepted signal that a
+  registration flow's job requires it to reveal, not an open enumeration
+  gap of the kind `/login` closes — checked deliberately per this
+  session's scope, and not something a code change can close without
+  changing the endpoint's actual contract (e.g. always returning `201`
+  with a "check your email" style response, which is a product decision
+  out of scope here, not a security bug fix). `06-security-threat-model.md`'s
+  T-12 row updated to describe both fixes and both new tests.
+- **Tests**: `test_login_does_equivalent_work_for_unknown_vs_known_username`
+  — deliberately a structural assertion (verify_password runs exactly
+  once, at the same iteration count, in both the known- and unknown-
+  username cases), not a wall-clock timing assertion, since the latter
+  would be flaky on shared CI runners; the docstring states this
+  trade-off explicitly. `test_register_is_rate_limited_after_repeated_attempts`
+  — proves the limiter trips across *different* usernames (it must, since
+  it's a global bucket), not just repeated attempts at one.
+
+## Files created or changed
+
+- `backend/src/lexicon/api/auth_routes.py` — `_DUMMY_PASSWORD_HASH`,
+  timing-equalised `login`, `enforce_register_rate_limit` wired into
+  `register`
+- `backend/src/lexicon/api/rate_limit.py` — `enforce_register_rate_limit`
+- `backend/src/lexicon/config.py` — `register_rate_limit_per_5_minutes`
+- `backend/tests/test_auth.py` — the two new tests above
+- `.env.example` — `REGISTER_RATE_LIMIT_PER_5_MINUTES`
+- `docs/project-memory/05-api-contracts.md`,
+  `06-security-threat-model.md`, `08-deployment-and-operations.md` —
+  reconciled with implementation, per Work completed above
+
+## Decisions made
+
+- **Structural test over wall-clock timing test for the side-channel
+  proof.** A real timing assertion (`assert elapsed_known ≈
+  elapsed_unknown`) is the more literal proof but is genuinely flaky on
+  shared/virtualized CI runners; the code-path invariant that actually
+  *causes* equal timing (same comparison, same iteration count, run
+  exactly once either way) is deterministic and just as strong a
+  guarantee, so it's what's asserted.
+- **Register's rate limit is a global bucket, not per-username**, unlike
+  login's. Deliberate, not an oversight: the whole point of rate-limiting
+  registration is to bound an attacker who is *choosing a new username on
+  every request* — a per-username key would never trip for that attacker
+  at all.
+- **`/register`'s `409 username_taken` is not treated as a bug to fix.**
+  Considered and rejected: this session's scope was closing enumeration
+  vectors that are implementation bugs (a timing leak, a missing
+  throttle), not redesigning `/register`'s contract to also hide whether
+  a username is taken, which is a different, larger product/UX decision
+  (e.g. always-succeeds-with-email-confirmation registration flows) this
+  session's ground rule ("don't touch the core auth mechanism") puts out
+  of scope.
+
+## Validation performed
+
+Real local Postgres 16 + pgvector 0.6.0 and Redis provisioned in this
+session's own sandbox (no Docker daemon available here), matching this
+project's standing "no test against a mock" rule for auth/rate-limit
+tests:
+
+- `ruff check`, `mypy src` (strict), `bandit -r src` — all clean on the
+  changed files.
+- `alembic upgrade head` — unaffected, no migration in this session.
+- `pytest tests/test_auth.py -q` — **17 passed** (15 pre-existing + 2 new).
+- `pytest -q` (full suite) — 53 passed, 12 failed; every failure is the
+  same pre-existing root cause as prior sessions' recorded runs (this
+  sandbox's outbound network policy blocks the real LLM/embedding calls
+  those tests exercise) — none touch auth, none regressed by this
+  session's change.
+
+## Open questions and risks
+
+Carried forward, still true, unaffected by this session's scope: see
+Session 13's entry above (no TLS, no refresh tokens/session revocation,
+unmeasured rate-limit thresholds, `JWT_SECRET_KEY`'s public dev default).
+
+New from this session:
+
+- **`register_rate_limit_per_5_minutes`'s threshold (20) is an unmeasured
+  placeholder**, same honesty standard as this project's other
+  thresholds — not validated against real signup-abuse traffic.
+- **A global registration rate limit is a single shared bucket across
+  every legitimate concurrent signup on the instance**, not just
+  attackers — a burst of real, unrelated signups can trip it. Accepted
+  for this deployment's actual scale (no cloud deployment, no measured
+  production signup volume), same honesty standard as this project's
+  other conservative placeholders; a hard revisit trigger if real traffic
+  ever approaches the threshold.
