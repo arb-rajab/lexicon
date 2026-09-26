@@ -48,9 +48,26 @@ token's `sub` claim.
 
 | Method | Path | Purpose | Request | Response |
 |---|---|---|---|---|
-| `POST` | `/api/v1/auth/register` | Create an account and receive a session token | `{ "username": string, "password": string }` | `201` `{ "access_token": string, "token_type": "bearer", "username": string }`; `409` `username_taken` |
-| `POST` | `/api/v1/auth/login` | Authenticate and receive a session token | `{ "username": string, "password": string }` | `200` `{ "access_token", "token_type", "username" }`; `401` `invalid_credentials` (identical for unknown username or wrong password — no username enumeration); `429` `rate_limited` (T-12) with `Retry-After` |
+| `POST` | `/api/v1/auth/register` | Create an account and receive a session token | `{ "username": string, "password": string }` | `201` `{ "access_token": string, "token_type": "bearer", "username": string }`; `409` `username_taken`; `429` `rate_limited` with `Retry-After` (global instance-wide window, not per-username — see below) |
+| `POST` | `/api/v1/auth/login` | Authenticate and receive a session token | `{ "username": string, "password": string }` | `200` `{ "access_token", "token_type", "username" }`; `401` `invalid_credentials` (identical body *and* identical response time for unknown username vs. wrong password — see below); `429` `rate_limited` (T-12) with `Retry-After` |
 | `GET` | `/api/v1/auth/me` | Confirm the caller's own identity | — (bearer token) | `200` `{ "username": string }` |
+
+**On "no username enumeration":** this guarantee applies to `/login`
+specifically, and to both its response body and its timing — a prior
+version of this endpoint returned the identical `401 invalid_credentials`
+body for both cases but only ran the ~600,000-iteration PBKDF2 comparison
+when the username existed, so the *unknown-username* case was measurably
+faster; that timing gap was itself a username-enumeration oracle even
+though the response body never differed. Fixed by always running the
+comparison (against a fixed dummy hash when no user row exists) so the
+two cases cost the same regardless of outcome.
+
+This guarantee does **not** extend to `/register`: a `409 username_taken`
+response is an inherent, unavoidable signal that the submitted username is
+already registered — that is what the endpoint's job (rejecting duplicate
+usernames) requires it to reveal, not a side-channel to close. Treat this
+as an accepted, standard trade-off of the registration flow itself, not an
+open enumeration gap of the kind `/login` closes.
 
 Every other endpoint below requires `Authorization: Bearer <token>`;
 missing or invalid (unsigned, forged, expired, wrong-algorithm) → `401`

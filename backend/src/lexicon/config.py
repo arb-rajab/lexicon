@@ -108,6 +108,16 @@ class Settings(BaseSettings):
     # a conservative placeholder, not measured against real attack traffic.
     login_rate_limit_per_5_minutes: int = 10
 
+    # Session N re-inspection: `/register` had no throttle at all (found
+    # alongside the login timing side-channel below). Global, not
+    # per-username like login's limit above — see
+    # `lexicon.api.rate_limit.enforce_register_rate_limit` for why. Higher
+    # than the login threshold since it's shared across every concurrent
+    # signup on the instance, not scoped to one attacker-chosen username —
+    # a conservative placeholder, not measured against real signup
+    # traffic, same honesty standard as this file's other thresholds.
+    register_rate_limit_per_5_minutes: int = 20
+
     # Session 7 (release readiness) — structured logging level
     # (logging_config.py). Independent of GUNICORN's own `--log-level`
     # (docker/entrypoint.prod.sh), which controls gunicorn's own

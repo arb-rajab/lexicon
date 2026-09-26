@@ -102,6 +102,41 @@ def enforce_login_rate_limit(redis_client: redis.Redis, settings: Settings, user
         logger.warning("login rate limiter unreachable, failing open for this request")
 
 
+_REGISTER_RATE_LIMIT_WINDOW_SECONDS = 5 * 60
+_REGISTER_RATE_LIMIT_KEY = "lexicon:register-attempts:global"
+
+
+def enforce_register_rate_limit(redis_client: redis.Redis, settings: Settings) -> None:
+    """Found during Session N re-inspection: `/register` had no throttle at
+    all — an open account-creation endpoint is both a mass-account-creation
+    vector and, since a `409 username_taken` response is itself a
+    registered-username oracle, an enumeration-via-registration-errors
+    vector (faster to script against than login, which is already rate
+    limited).
+
+    Global bucket, not per-submitted-username like
+    `enforce_login_rate_limit`: the identity being rate limited here
+    doesn't exist yet, so keying on it is trivially evaded by trying a new
+    username on every request. Same "this app never sees caller IP
+    reliably" constraint as login applies here too, so a global fixed
+    window is the available option, not a design preference. Same
+    fail-open-on-Redis-outage posture as every other control in this
+    module, for the same availability reason.
+    """
+    key = _REGISTER_RATE_LIMIT_KEY
+    try:
+        count = redis_client.incr(key)
+        if count == 1:
+            redis_client.expire(key, _REGISTER_RATE_LIMIT_WINDOW_SECONDS)
+        if count > settings.register_rate_limit_per_5_minutes:
+            ttl = redis_client.ttl(key)
+            raise RateLimitExceeded(
+                retry_after=ttl if ttl and ttl > 0 else _REGISTER_RATE_LIMIT_WINDOW_SECONDS
+            )
+    except redis.RedisError:
+        logger.warning("register rate limiter unreachable, failing open for this request")
+
+
 def enforce_query_limits(
     redis_client: redis.Redis, settings: Settings, corpus_id: uuid.UUID
 ) -> None:

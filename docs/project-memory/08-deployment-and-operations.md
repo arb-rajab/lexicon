@@ -284,6 +284,7 @@ was previously only demonstrated against dev.
 |---|---|---|
 | `JWT_SECRET_KEY` | Signs/verifies this instance's session tokens (`lexicon.security.tokens`) — the entire authentication boundary now rests on this value staying secret | `lexicon-dev-only-jwt-secret-DO-NOT-USE-IN-PRODUCTION` — a **labeled, public-by-construction placeholder**, same convention as `POSTGRES_PASSWORD`/`MINIO_ROOT_PASSWORD`'s dev-only defaults. Overriding this with a long, random, environment-specific secret before any non-local deployment is a hard requirement, not a hardening suggestion: a token signed with the default is forgeable by anyone who has read this public repository, which defeats T-04's ownership enforcement exactly as completely as the vulnerability ADR-0005 fixes |
 | `LOGIN_RATE_LIMIT_PER_5_MINUTES` | T-12 login-attempt rate limit (`lexicon.api.rate_limit.enforce_login_rate_limit`), Redis-backed | `10` — a conservative placeholder, not measured against real attack traffic |
+| `REGISTER_RATE_LIMIT_PER_5_MINUTES` | Registration-attempt rate limit (`lexicon.api.rate_limit.enforce_register_rate_limit`), Redis-backed — found unthrottled during a later re-inspection; global across the instance, not per-username, since the identity doesn't exist yet at the point this control runs | `20` — a conservative placeholder, not measured against real attack traffic |
 
 This is also this project's first application code path (beyond the
 already-provisioned-but-idle mention below) to depend on both Postgres and

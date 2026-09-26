@@ -7,6 +7,24 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Security
+- **Closed a login timing side-channel (username enumeration) and added
+  rate limiting to `/register`.** `/login` returned the identical `401
+  invalid_credentials` body for an unknown username vs. a wrong password,
+  but only ran the ~600,000-iteration PBKDF2 comparison when a matching
+  user row existed — the unknown-username case was measurably faster,
+  which is a username-enumeration oracle even though the response body
+  never differed. Fixed by always running the comparison, against a fixed
+  dummy hash when no user exists, so both cases cost the same.
+  `/register` had no rate limiting at all; added a global,
+  instance-wide 5-minute throttle (`REGISTER_RATE_LIMIT_PER_5_MINUTES`) —
+  global rather than per-username, since the identity being throttled
+  doesn't exist yet and a per-username key would be trivially evaded by
+  varying the username per request. `05-api-contracts.md`'s "no
+  enumeration" claim corrected to state the timing fix explicitly and to
+  note that `/register`'s `409 username_taken` is a separate, inherent,
+  accepted signal, not a gap this fix closes. See
+  `docs/project-memory/12-session-handoff.md` (Session 14) and
+  `backend/tests/test_auth.py`.
 - **Closed a full, live-reachable impersonation vulnerability (ADR-0005):**
   the backend previously trusted whatever `X-User-Id` value a caller sent
   directly, on the assumption that a real deployment would terminate and

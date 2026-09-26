@@ -137,6 +137,59 @@ def test_login_for_unknown_username_gets_same_error_as_wrong_password(db) -> Non
     assert resp.json()["error"]["code"] == "invalid_credentials"
 
 
+def test_login_does_equivalent_work_for_unknown_vs_known_username(db, monkeypatch) -> None:
+    """The `401 invalid_credentials` response is deliberately identical for
+    an unknown username and a wrong password (see
+    `test_login_for_unknown_username_gets_same_error_as_wrong_password`
+    above) — but that guarantee is only as good as the response *timing*
+    behind it. Before this session, `login` only ran the ~600,000-iteration
+    PBKDF2 comparison when a matching user row existed, so the unknown-
+    username case returned measurably faster: a timing side-channel that
+    lets a caller enumerate registered usernames even though the error body
+    never reveals it.
+
+    A wall-clock timing assertion here would be flaky on shared CI runners
+    (GC pauses, scheduler noise), so instead this asserts the structural
+    invariant that actually guarantees equal cost: `verify_password` runs
+    exactly once per login attempt, against a hash string with the same
+    PBKDF2 iteration count, whether or not the username exists.
+    """
+    import lexicon.api.auth_routes as auth_routes
+
+    real_verify_password = auth_routes.verify_password
+    calls: list[str] = []
+
+    def spy(password: str, stored_hash: str) -> bool:
+        calls.append(stored_hash.split("$")[1])  # iteration count
+        return real_verify_password(password, stored_hash)
+
+    monkeypatch.setattr(auth_routes, "verify_password", spy)
+
+    client.post(
+        "/api/v1/auth/register", json={"username": "grace", "password": "graces-real-password"}
+    )
+
+    calls.clear()
+    known_resp = client.post(
+        "/api/v1/auth/login", json={"username": "grace", "password": "wrong-password-guess"}
+    )
+    assert known_resp.status_code == 401
+    known_iterations = list(calls)
+
+    calls.clear()
+    unknown_resp = client.post(
+        "/api/v1/auth/login",
+        json={"username": "nobody-has-ever-registered-this-one", "password": "whatever"},
+    )
+    assert unknown_resp.status_code == 401
+    unknown_iterations = list(calls)
+
+    # Same number of PBKDF2 comparisons, at the same iteration count,
+    # regardless of whether the username exists.
+    assert known_iterations == unknown_iterations
+    assert len(known_iterations) == 1
+
+
 def test_password_is_never_returned_or_stored_in_plaintext(db) -> None:
     resp = client.post(
         "/api/v1/auth/register", json={"username": "erin", "password": "erins-secret-password"}
@@ -260,6 +313,37 @@ def test_login_is_rate_limited_after_repeated_failures(db, monkeypatch) -> None:
 
     limited_resp = client.post(
         "/api/v1/auth/login", json={"username": "frank", "password": "wrong-password-guess"}
+    )
+    assert limited_resp.status_code == 429
+    assert limited_resp.json()["error"]["code"] == "rate_limited"
+    assert int(limited_resp.headers["retry-after"]) > 0
+
+
+# --- /register is rate limited -----------------------------------------------
+
+
+def test_register_is_rate_limited_after_repeated_attempts(db, monkeypatch) -> None:
+    """Found alongside the login timing side-channel: `/register` had no
+    throttle at all. Unlike login's per-username limiter, this must trip
+    even though every attempt below uses a *different* username — a
+    per-username key would be trivially evaded by an attacker who just
+    varies the username on each request.
+    """
+    from lexicon.config import Settings
+
+    test_settings = Settings(register_rate_limit_per_5_minutes=3)
+    monkeypatch.setattr("lexicon.api.auth_routes.get_settings", lambda: test_settings)
+
+    for i in range(3):
+        resp = client.post(
+            "/api/v1/auth/register",
+            json={"username": f"register-limit-user-{i}", "password": "a-real-password-123"},
+        )
+        assert resp.status_code == 201
+
+    limited_resp = client.post(
+        "/api/v1/auth/register",
+        json={"username": "register-limit-user-overflow", "password": "a-real-password-123"},
     )
     assert limited_resp.status_code == 429
     assert limited_resp.json()["error"]["code"] == "rate_limited"
