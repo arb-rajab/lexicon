@@ -3,19 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UploadForm } from "@/components/UploadForm";
-import { IdentityProvider } from "@/lib/identity";
 
 function renderForm(onUploaded = vi.fn()) {
-  render(
-    <IdentityProvider>
-      <UploadForm corpusId="corpus-1" onUploaded={onUploaded} />
-    </IdentityProvider>,
-  );
+  render(<UploadForm corpusId="corpus-1" onUploaded={onUploaded} />);
   return onUploaded;
-}
-
-async function waitForHydration() {
-  await waitFor(() => expect(screen.getByLabelText(/upload a document/i)).toBeInTheDocument());
 }
 
 describe("UploadForm", () => {
@@ -30,7 +21,6 @@ describe("UploadForm", () => {
   it("rejects an oversized file client-side without calling the backend", async () => {
     const user = userEvent.setup();
     const onUploaded = renderForm();
-    await waitForHydration();
 
     const oversized = new File([new Uint8Array(11 * 1024 * 1024)], "huge.txt", {
       type: "text/plain",
@@ -46,7 +36,6 @@ describe("UploadForm", () => {
   it("uploads an in-bounds file and calls onUploaded", async () => {
     const user = userEvent.setup();
     const onUploaded = renderForm();
-    await waitForHydration();
 
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ document_id: "doc-1", status: "ready" }), {
@@ -68,7 +57,6 @@ describe("UploadForm", () => {
   it("surfaces a 413 from the backend when the client-side check is bypassed", async () => {
     const user = userEvent.setup();
     renderForm();
-    await waitForHydration();
 
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(

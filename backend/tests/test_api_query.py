@@ -3,10 +3,10 @@
 the stub LLM tier (no ANTHROPIC_API_KEY in the test environment, matching
 conftest.py's deliberate non-override of that).
 
-Every request carries X-User-Id (lexicon.api.auth) since T-04's ownership
-checks (lexicon.api.ownership) now require it — see
-test_corpus_authorization.py for the cross-corpus regression coverage
-itself.
+Every request carries a real, verified bearer token (ADR-0005,
+tests/support/auth.py) since T-04's ownership checks (lexicon.api.ownership)
+now require an authenticated caller — see test_corpus_authorization.py for
+the cross-corpus regression coverage itself.
 """
 
 from pathlib import Path
@@ -14,16 +14,20 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from lexicon.main import app
+from tests.support.auth import bearer_headers_for
 
 client = TestClient(app)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORS_MD = REPO_ROOT / "docs" / "spikes" / "session1-hybrid-retrieval" / "corpus" / "cors.md"
 
-AUTH_HEADERS = {"X-User-Id": "api-flow-user"}
+
+def _auth_headers() -> dict[str, str]:
+    return bearer_headers_for(client, "api-flow-user")
 
 
 def test_full_ingest_and_query_flow_through_the_api(db) -> None:
+    AUTH_HEADERS = _auth_headers()
     create_resp = client.post(
         "/api/v1/corpora", json={"name": "api-flow-test"}, headers=AUTH_HEADERS
     )
@@ -71,6 +75,7 @@ def test_full_ingest_and_query_flow_through_the_api(db) -> None:
 
 
 def test_unsupported_document_type_returns_415(db) -> None:
+    AUTH_HEADERS = _auth_headers()
     create_resp = client.post(
         "/api/v1/corpora", json={"name": "bad-upload-test"}, headers=AUTH_HEADERS
     )
@@ -86,6 +91,7 @@ def test_unsupported_document_type_returns_415(db) -> None:
 
 
 def test_query_against_unknown_corpus_returns_404(db) -> None:
+    AUTH_HEADERS = _auth_headers()
     resp = client.post(
         "/api/v1/corpora/00000000-0000-0000-0000-000000000000/query",
         json={"question": "anything?"},
@@ -95,6 +101,7 @@ def test_query_against_unknown_corpus_returns_404(db) -> None:
 
 
 def test_question_over_length_limit_returns_422(db) -> None:
+    AUTH_HEADERS = _auth_headers()
     create_resp = client.post(
         "/api/v1/corpora", json={"name": "length-test"}, headers=AUTH_HEADERS
     )

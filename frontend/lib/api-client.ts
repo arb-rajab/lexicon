@@ -39,69 +39,56 @@ async function unwrap<T>(response: Response): Promise<T> {
   return response.json();
 }
 
-function authHeaders(userId: string): HeadersInit {
-  return { "x-user-id": userId };
-}
+// No caller-identity header to attach here (ADR-0005): the browser sends
+// this app's own httpOnly session cookie automatically on every same-origin
+// request, and app/api/**'s route handlers (lib/backend.ts) turn it into
+// the real `Authorization: Bearer <token>` the backend verifies.
 
-export async function listCorpora(userId: string): Promise<Corpus[]> {
-  const res = await fetch("/api/corpora", { headers: authHeaders(userId) });
+export async function listCorpora(): Promise<Corpus[]> {
+  const res = await fetch("/api/corpora");
   return unwrap(res);
 }
 
-export async function createCorpus(userId: string, name: string): Promise<Corpus> {
+export async function createCorpus(name: string): Promise<Corpus> {
   const res = await fetch("/api/corpora", {
     method: "POST",
-    headers: { ...authHeaders(userId), "content-type": "application/json" },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ name }),
   });
   return unwrap(res);
 }
 
-export async function getCorpus(userId: string, corpusId: string): Promise<CorpusDetail> {
-  const res = await fetch(`/api/corpora/${corpusId}`, { headers: authHeaders(userId) });
+export async function getCorpus(corpusId: string): Promise<CorpusDetail> {
+  const res = await fetch(`/api/corpora/${corpusId}`);
   return unwrap(res);
 }
 
-export async function listDocuments(userId: string, corpusId: string): Promise<LexiconDocument[]> {
-  const res = await fetch(`/api/corpora/${corpusId}/documents`, { headers: authHeaders(userId) });
+export async function listDocuments(corpusId: string): Promise<LexiconDocument[]> {
+  const res = await fetch(`/api/corpora/${corpusId}/documents`);
   return unwrap(res);
 }
 
-export async function uploadDocument(
-  userId: string,
-  corpusId: string,
-  file: File,
-): Promise<DocumentUploadResult> {
+export async function uploadDocument(corpusId: string, file: File): Promise<DocumentUploadResult> {
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(`/api/corpora/${corpusId}/documents`, {
     method: "POST",
-    headers: authHeaders(userId),
     body: formData,
   });
   return unwrap(res);
 }
 
-export async function deleteDocument(
-  userId: string,
-  corpusId: string,
-  documentId: string,
-): Promise<void> {
+export async function deleteDocument(corpusId: string, documentId: string): Promise<void> {
   const res = await fetch(`/api/corpora/${corpusId}/documents/${documentId}`, {
     method: "DELETE",
-    headers: authHeaders(userId),
   });
   return unwrap(res);
 }
 
-export async function askQuestion(
-  userId: string,
-  corpusId: string,
-  question: string,
-): Promise<QueryResponse> {
+export async function askQuestion(corpusId: string, question: string): Promise<QueryResponse> {
   const res = await fetch(`/api/corpora/${corpusId}/query`, {
     method: "POST",
-    headers: { ...authHeaders(userId), "content-type": "application/json" },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ question }),
   });
   return unwrap(res);

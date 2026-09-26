@@ -27,6 +27,7 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6380/0")
 os.environ.pop("ANTHROPIC_API_KEY", None)
 
 import pytest  # noqa: E402
+import redis  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
@@ -42,6 +43,7 @@ ALL_TABLES = (
     "chunk",
     "document",
     "corpus",
+    "app_user",
 )
 
 
@@ -65,6 +67,15 @@ def _clean_tables(admin_engine, _migrated_schema):  # type: ignore[no-untyped-de
     yield
     with admin_engine.begin() as conn:
         conn.execute(text(f"TRUNCATE {', '.join(ALL_TABLES)} RESTART IDENTITY CASCADE"))
+    # Redis also carries test-created state: T-05's per-corpus rate-limit/
+    # spend-ceiling counters (keyed by a fresh corpus UUID each test, so
+    # leftover keys were harmless) and, since ADR-0005, T-12's per-username
+    # login rate limit (keyed by a small set of *reused* literal usernames
+    # across tests — leftover attempt counts there previously bled into
+    # unrelated later tests/runs, causing real, reproduced flakiness).
+    # Flushing between tests, not just relying on each key's own TTL, is
+    # the actual fix.
+    redis.Redis.from_url(os.environ["REDIS_URL"]).flushdb()
 
 
 @pytest.fixture()

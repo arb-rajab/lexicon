@@ -1,22 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { QueryPanel } from "@/components/QueryPanel";
 import { ApiError } from "@/lib/api-client";
-import { IdentityProvider } from "@/lib/identity";
 
 function renderPanel() {
-  return render(
-    <IdentityProvider>
-      <QueryPanel corpusId="corpus-1" />
-    </IdentityProvider>,
-  );
-}
-
-async function waitForHydration() {
-  // IdentityProvider renders null until its localStorage-read effect runs.
-  await waitFor(() => expect(screen.getByLabelText(/ask this corpus/i)).toBeInTheDocument());
+  return render(<QueryPanel corpusId="corpus-1" />);
 }
 
 describe("QueryPanel", () => {
@@ -53,7 +43,6 @@ describe("QueryPanel", () => {
     );
 
     renderPanel();
-    await waitForHydration();
 
     await user.type(screen.getByLabelText(/ask this corpus/i), "How do I roll back?");
     await user.click(screen.getByRole("button", { name: /ask/i }));
@@ -61,8 +50,11 @@ describe("QueryPanel", () => {
     expect(await screen.findByText(/rollback is triggered/i)).toBeInTheDocument();
     expect(screen.getByText(/runbook\.md/)).toBeInTheDocument();
 
-    const [, init] = vi.mocked(fetch).mock.calls[0];
-    expect(init?.headers).toMatchObject({ "x-user-id": "demo-user" });
+    // No caller-identity header to assert here (ADR-0005) — the browser's
+    // own httpOnly session cookie is what carries the caller's identity,
+    // sent automatically and invisible to this fetch mock.
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toBe("/api/corpora/corpus-1/query");
   });
 
   it("renders a refusal when the pipeline can't ground an answer", async () => {
@@ -82,7 +74,6 @@ describe("QueryPanel", () => {
     );
 
     renderPanel();
-    await waitForHydration();
 
     await user.type(screen.getByLabelText(/ask this corpus/i), "What is the meaning of life?");
     await user.click(screen.getByRole("button", { name: /ask/i }));
@@ -103,7 +94,6 @@ describe("QueryPanel", () => {
     );
 
     renderPanel();
-    await waitForHydration();
 
     await user.type(screen.getByLabelText(/ask this corpus/i), "Another question");
     await user.click(screen.getByRole("button", { name: /ask/i }));
@@ -125,7 +115,6 @@ describe("QueryPanel", () => {
     );
 
     renderPanel();
-    await waitForHydration();
 
     await user.type(screen.getByLabelText(/ask this corpus/i), "Another question");
     await user.click(screen.getByRole("button", { name: /ask/i }));
@@ -136,7 +125,6 @@ describe("QueryPanel", () => {
   it("disables submit and shows an error count once the question is too long", async () => {
     const user = userEvent.setup();
     renderPanel();
-    await waitForHydration();
 
     const textarea = screen.getByLabelText(/ask this corpus/i);
     await user.type(textarea, "a".repeat(1001));

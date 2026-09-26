@@ -34,18 +34,38 @@ class Base(DeclarativeBase):
     pass
 
 
+class AppUser(Base):
+    """ADR-0005 — a real, password-authenticated account. `username` is the
+    identity that flows into `CallerContext.user_id` (lexicon.api.auth) and
+    `Corpus.owner_id` below once a caller's session token has been verified
+    — the same string the pre-ADR-0005 design took directly, unverified,
+    from the X-User-Id header. Table name is `app_user`, not `user`,
+    because the latter is a reserved word in Postgres.
+    """
+
+    __tablename__ = "app_user"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    username: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Corpus(Base):
     __tablename__ = "corpus"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     # T-04 (06-security-threat-model.md): the caller identity
-    # (lexicon.api.auth.CallerContext.user_id, sourced from the X-User-Id
-    # header) that created this corpus. Every corpus_id-scoped endpoint
-    # (lexicon.api.ownership.require_owned_corpus) checks the caller
-    # against this column before allowing access to the corpus's documents,
-    # queries, or audit trail — closing the IDOR gap this threat was named
-    # for but that had no enforcement until this column existed.
+    # (lexicon.api.auth.CallerContext.user_id) that created this corpus.
+    # Every corpus_id-scoped endpoint (lexicon.api.ownership.
+    # require_owned_corpus) checks the caller against this column before
+    # allowing access to the corpus's documents, queries, or audit trail.
+    # Since ADR-0005, this value is the `sub` claim of a cryptographically
+    # verified session token (lexicon.security.tokens), never a raw,
+    # client-supplied header — see ADR-0005 for why the pre-ADR-0005
+    # X-User-Id-header source of this same column was a full impersonation
+    # vulnerability, not merely an undesigned edge.
     owner_id: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

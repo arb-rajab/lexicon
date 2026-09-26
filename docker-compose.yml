@@ -67,6 +67,12 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GENERATION_MODEL: ${GENERATION_MODEL:-claude-sonnet-5}
       VERIFICATION_MODEL: ${VERIFICATION_MODEL:-claude-haiku-4-5}
+      # ADR-0005 — signs/verifies this instance's session tokens (real
+      # login, replacing the old trusted-X-User-Id-header model). The
+      # fallback below is a labeled dev-only placeholder (config.py) —
+      # override it with a real random value for any non-local deployment,
+      # the same way POSTGRES_PASSWORD/MINIO_ROOT_PASSWORD already are.
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-lexicon-dev-only-jwt-secret-DO-NOT-USE-IN-PRODUCTION}
     ports:
       - "8010:8000"
     depends_on:

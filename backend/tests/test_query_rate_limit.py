@@ -21,10 +21,9 @@ from fastapi.testclient import TestClient
 
 from lexicon.config import Settings
 from lexicon.main import app
+from tests.support.auth import bearer_headers_for
 
 client = TestClient(app)
-
-AUTH_HEADERS = {"X-User-Id": "rate-limit-user"}
 
 
 @pytest.fixture(autouse=True)
@@ -32,14 +31,15 @@ def _stub_query_embedding(monkeypatch):  # type: ignore[no-untyped-def]
     monkeypatch.setattr("lexicon.retrieval.service.embed_query", lambda text: [0.0] * 384)
 
 
-def _create_corpus(name: str) -> str:
-    resp = client.post("/api/v1/corpora", json={"name": name}, headers=AUTH_HEADERS)
+def _create_corpus(name: str) -> tuple[str, dict[str, str]]:
+    headers = bearer_headers_for(client, "rate-limit-user")
+    resp = client.post("/api/v1/corpora", json={"name": name}, headers=headers)
     assert resp.status_code == 201
-    return str(resp.json()["id"])
+    return str(resp.json()["id"]), headers
 
 
 def test_query_rate_limit_returns_429_with_retry_after(db, monkeypatch) -> None:
-    corpus_id = _create_corpus("rate-limit-test")
+    corpus_id, AUTH_HEADERS = _create_corpus("rate-limit-test")
     test_settings = Settings(query_rate_limit_per_minute=2)
     monkeypatch.setattr("lexicon.api.query.get_settings", lambda: test_settings)
 
@@ -62,7 +62,7 @@ def test_query_rate_limit_returns_429_with_retry_after(db, monkeypatch) -> None:
 
 
 def test_query_spend_ceiling_returns_429_once_reached(db, monkeypatch) -> None:
-    corpus_id = _create_corpus("spend-ceiling-test")
+    corpus_id, AUTH_HEADERS = _create_corpus("spend-ceiling-test")
     # A high rate limit so only the spend ceiling can trip in this test.
     test_settings = Settings(query_rate_limit_per_minute=1000, query_daily_spend_ceiling=2)
     monkeypatch.setattr("lexicon.api.query.get_settings", lambda: test_settings)
@@ -86,8 +86,8 @@ def test_query_spend_ceiling_returns_429_once_reached(db, monkeypatch) -> None:
 
 
 def test_rate_limit_is_scoped_per_corpus(db, monkeypatch) -> None:
-    corpus_a = _create_corpus("rate-limit-scope-a")
-    corpus_b = _create_corpus("rate-limit-scope-b")
+    corpus_a, AUTH_HEADERS = _create_corpus("rate-limit-scope-a")
+    corpus_b, _ = _create_corpus("rate-limit-scope-b")
     test_settings = Settings(query_rate_limit_per_minute=1)
     monkeypatch.setattr("lexicon.api.query.get_settings", lambda: test_settings)
 

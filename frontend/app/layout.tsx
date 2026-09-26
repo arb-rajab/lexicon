@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
-import { IdentityBar } from "@/components/IdentityBar";
-import { IdentityProvider } from "@/lib/identity";
+import { AuthGate } from "@/components/AuthGate";
+import { AuthProvider } from "@/lib/auth";
 
 import "./globals.css";
 
@@ -18,13 +18,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <IdentityProvider>
-          <header className="site-header">
-            <span className="site-header__brand">lexicon</span>
-            <IdentityBar />
-          </header>
-          {children}
-        </IdentityProvider>
+        <AuthProvider>
+          <AuthGate>{children}</AuthGate>
+        </AuthProvider>
       </body>
     </html>
   );

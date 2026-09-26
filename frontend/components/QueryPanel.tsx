@@ -4,13 +4,11 @@ import { useState } from "react";
 
 import * as api from "@/lib/api-client";
 import { MAX_QUESTION_LENGTH } from "@/lib/constants";
-import { useIdentity } from "@/lib/identity";
 import type { QueryResponse } from "@/lib/types";
 
 import { ApiErrorMessage } from "./ApiErrorMessage";
 
 export function QueryPanel({ corpusId }: { corpusId: string }) {
-  const { userId } = useIdentity();
   const [question, setQuestion] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -27,7 +25,7 @@ export function QueryPanel({ corpusId }: { corpusId: string }) {
     setError(null);
     setResult(null);
     try {
-      const response = await api.askQuestion(userId, corpusId, trimmed);
+      const response = await api.askQuestion(corpusId, trimmed);
       setResult(response);
     } catch (err) {
       setError(err);

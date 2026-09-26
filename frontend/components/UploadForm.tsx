@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 
 import * as api from "@/lib/api-client";
 import { MAX_UPLOAD_SIZE_BYTES } from "@/lib/constants";
-import { useIdentity } from "@/lib/identity";
 
 import { ApiErrorMessage } from "./ApiErrorMessage";
 
@@ -19,7 +18,6 @@ export function UploadForm({
   corpusId: string;
   onUploaded: () => void;
 }) {
-  const { userId } = useIdentity();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [rejection, setRejection] = useState<string | null>(null);
@@ -42,7 +40,7 @@ export function UploadForm({
 
     setUploading(true);
     try {
-      await api.uploadDocument(userId, corpusId, file);
+      await api.uploadDocument(corpusId, file);
       onUploaded();
     } catch (err) {
       setError(err);

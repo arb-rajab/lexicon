@@ -278,6 +278,20 @@ Deployment procedure step 5 above for the actual command and result. This
 had never previously been checked against a production-built image; it
 was previously only demonstrated against dev.
 
+**ADR-0005 addendum — real authentication, new variables:**
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `JWT_SECRET_KEY` | Signs/verifies this instance's session tokens (`lexicon.security.tokens`) — the entire authentication boundary now rests on this value staying secret | `lexicon-dev-only-jwt-secret-DO-NOT-USE-IN-PRODUCTION` — a **labeled, public-by-construction placeholder**, same convention as `POSTGRES_PASSWORD`/`MINIO_ROOT_PASSWORD`'s dev-only defaults. Overriding this with a long, random, environment-specific secret before any non-local deployment is a hard requirement, not a hardening suggestion: a token signed with the default is forgeable by anyone who has read this public repository, which defeats T-04's ownership enforcement exactly as completely as the vulnerability ADR-0005 fixes |
+| `LOGIN_RATE_LIMIT_PER_5_MINUTES` | T-12 login-attempt rate limit (`lexicon.api.rate_limit.enforce_login_rate_limit`), Redis-backed | `10` — a conservative placeholder, not measured against real attack traffic |
+
+This is also this project's first application code path (beyond the
+already-provisioned-but-idle mention below) to depend on both Postgres and
+Redis for a single request path outside `api/query.py`'s existing T-05
+controls — login's rate limiting fails open on a Redis outage, same
+availability posture as T-05's, so an unreachable Redis does not itself
+block authentication.
+
 **MinIO and Redis are both provisioned in `docker-compose.prod.yml` (same
 images as `docker-compose.yml`) but neither is called by any application
 code path today** — `ingestion/service.py`'s own module docstring already

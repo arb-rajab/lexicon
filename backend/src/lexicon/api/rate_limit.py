@@ -72,6 +72,36 @@ def _check_spend_ceiling(
         )
 
 
+_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 5 * 60
+
+
+def _login_key(username: str) -> str:
+    return f"lexicon:login-attempts:{username.strip().lower()}"
+
+
+def enforce_login_rate_limit(redis_client: redis.Redis, settings: Settings, username: str) -> None:
+    """T-12 (06-security-threat-model.md): rate-limited login, so guessing a
+    real account's password isn't just gated by real-world latency. Keyed
+    by the submitted username (not caller IP, which this app never sees
+    reliably behind an unknown/absent proxy layer) — same fail-open-on-
+    Redis-outage posture as enforce_query_limits above, for the same
+    availability reason: an unreachable rate limiter should not itself take
+    login down.
+    """
+    key = _login_key(username)
+    try:
+        count = redis_client.incr(key)
+        if count == 1:
+            redis_client.expire(key, _LOGIN_RATE_LIMIT_WINDOW_SECONDS)
+        if count > settings.login_rate_limit_per_5_minutes:
+            ttl = redis_client.ttl(key)
+            raise RateLimitExceeded(
+                retry_after=ttl if ttl and ttl > 0 else _LOGIN_RATE_LIMIT_WINDOW_SECONDS
+            )
+    except redis.RedisError:
+        logger.warning("login rate limiter unreachable, failing open for this request")
+
+
 def enforce_query_limits(
     redis_client: redis.Redis, settings: Settings, corpus_id: uuid.UUID
 ) -> None:

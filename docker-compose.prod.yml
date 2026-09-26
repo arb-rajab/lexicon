@@ -111,6 +111,12 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GENERATION_MODEL: ${GENERATION_MODEL:-claude-sonnet-5}
       VERIFICATION_MODEL: ${VERIFICATION_MODEL:-claude-haiku-4-5}
+      # ADR-0005 — same real-auth session-token signing key as
+      # docker-compose.yml. The fallback here is the same labeled dev-only
+      # placeholder (config.py); a real production run of this file MUST
+      # override it — this stack has no other authentication boundary in
+      # front of it (see ADR-0005's Context: no gateway is deployed here).
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-lexicon-dev-only-jwt-secret-DO-NOT-USE-IN-PRODUCTION}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
     ports:
@@ -153,6 +159,14 @@ services:
       # (12-session-handoff.md) by pinning HOSTNAME explicitly, which
       # wins over Docker's own default injection.
       HOSTNAME: "0.0.0.0"
+      # ADR-0005 — deliberately unset (defaults to `false`,
+      # lib/session-cookie.ts). This stack has no TLS termination (this
+      # file's own comment above on that decision) — a `Secure` session
+      # cookie served over the plain HTTP this stack actually serves would
+      # be silently dropped by the browser, breaking login. Set to `true`
+      # only once/if a real TLS-terminating layer is added in front of this
+      # service (see ADR-0005's Revisit triggers).
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - "3002:3000"
     depends_on:
