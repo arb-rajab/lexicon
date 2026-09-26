@@ -3,13 +3,11 @@
 import { useState } from "react";
 
 import * as api from "@/lib/api-client";
-import { useIdentity } from "@/lib/identity";
 import type { Corpus } from "@/lib/types";
 
 import { ApiErrorMessage } from "./ApiErrorMessage";
 
 export function CorpusCreateForm({ onCreated }: { onCreated: (corpus: Corpus) => void }) {
-  const { userId } = useIdentity();
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -21,7 +19,7 @@ export function CorpusCreateForm({ onCreated }: { onCreated: (corpus: Corpus) =>
     setSubmitting(true);
     setError(null);
     try {
-      const corpus = await api.createCorpus(userId, trimmed);
+      const corpus = await api.createCorpus(trimmed);
       onCreated(corpus);
       setName("");
     } catch (err) {

@@ -16,6 +16,26 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail
 
 
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(min_length=8, max_length=256)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    username: str
+
+
+class MeOut(BaseModel):
+    username: str
+
+
 class CorpusCreate(BaseModel):
     name: str = Field(min_length=1)
 

@@ -87,6 +87,27 @@ class Settings(BaseSettings):
     corpus_owner_role: str = Field(default="corpus_owner")
     knowledge_worker_role: str = Field(default="knowledge_worker")
 
+    # ADR-0005 — real instance-level authentication. Session tokens are
+    # HS256-signed JWTs this process both issues (POST /api/v1/auth/login,
+    # /register) and verifies (lexicon.api.auth.get_caller) — symmetric
+    # signing is sufficient because there is exactly one issuer and one
+    # verifier, unlike a separate-gateway deployment shape. The default
+    # below is a labeled dev-only placeholder, matching this project's
+    # existing convention for local-only secrets (POSTGRES_PASSWORD,
+    # MINIO_ROOT_PASSWORD): every real deployment must override
+    # JWT_SECRET_KEY with a long, random, environment-specific value — a
+    # token signed with the default is forgeable by anyone who has read
+    # this file, which is every user of this public repository.
+    jwt_secret_key: str = "lexicon-dev-only-jwt-secret-DO-NOT-USE-IN-PRODUCTION"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60 * 24
+
+    # T-12 (06-security-threat-model.md): "whatever auth mechanism is
+    # eventually chosen must include ... rate-limited login." Redis-backed,
+    # same mechanism as T-05's query rate limit (lexicon.api.rate_limit) —
+    # a conservative placeholder, not measured against real attack traffic.
+    login_rate_limit_per_5_minutes: int = 10
+
     # Session 7 (release readiness) — structured logging level
     # (logging_config.py). Independent of GUNICORN's own `--log-level`
     # (docker/entrypoint.prod.sh), which controls gunicorn's own

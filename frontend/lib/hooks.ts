@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 
 import * as api from "@/lib/api-client";
 import { ApiError } from "@/lib/api-client";
-import { useIdentity } from "@/lib/identity";
 import type { Corpus, CorpusDetail, Document as LexiconDocument } from "@/lib/types";
 
 interface AsyncState<T> {
@@ -15,7 +14,6 @@ interface AsyncState<T> {
 
 /** List of the caller's own corpora, plus a way to add one locally after create. */
 export function useCorpora() {
-  const { userId } = useIdentity();
   const [state, setState] = useState<AsyncState<Corpus[]>>({
     data: null,
     error: null,
@@ -25,10 +23,10 @@ export function useCorpora() {
   const refetch = useCallback(() => {
     setState((s) => ({ ...s, loading: true, error: null }));
     api
-      .listCorpora(userId)
+      .listCorpora()
       .then((data) => setState({ data, error: null, loading: false }))
       .catch((error) => setState({ data: null, error, loading: false }));
-  }, [userId]);
+  }, []);
 
   useEffect(refetch, [refetch]);
 
@@ -40,7 +38,6 @@ export function useCorpora() {
 }
 
 export function useCorpus(corpusId: string) {
-  const { userId } = useIdentity();
   const [state, setState] = useState<AsyncState<CorpusDetail>>({
     data: null,
     error: null,
@@ -50,10 +47,10 @@ export function useCorpus(corpusId: string) {
   const refetch = useCallback(() => {
     setState((s) => ({ ...s, loading: true, error: null }));
     api
-      .getCorpus(userId, corpusId)
+      .getCorpus(corpusId)
       .then((data) => setState({ data, error: null, loading: false }))
       .catch((error) => setState({ data: null, error, loading: false }));
-  }, [userId, corpusId]);
+  }, [corpusId]);
 
   useEffect(refetch, [refetch]);
 
@@ -61,7 +58,6 @@ export function useCorpus(corpusId: string) {
 }
 
 export function useDocuments(corpusId: string) {
-  const { userId } = useIdentity();
   const [state, setState] = useState<AsyncState<LexiconDocument[]>>({
     data: null,
     error: null,
@@ -71,10 +67,10 @@ export function useDocuments(corpusId: string) {
   const refetch = useCallback(() => {
     setState((s) => ({ ...s, loading: true, error: null }));
     api
-      .listDocuments(userId, corpusId)
+      .listDocuments(corpusId)
       .then((data) => setState({ data, error: null, loading: false }))
       .catch((error) => setState({ data: null, error, loading: false }));
-  }, [userId, corpusId]);
+  }, [corpusId]);
 
   useEffect(refetch, [refetch]);
 

@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from lexicon.api.auth_routes import router as auth_router
 from lexicon.api.corpora import router as corpora_router
 from lexicon.api.deps import get_db
 from lexicon.api.documents import router as documents_router
@@ -27,6 +28,7 @@ logger = logging.getLogger("lexicon.request")
 
 app = FastAPI(title="lexicon", version="0.1.0")
 
+app.include_router(auth_router)
 app.include_router(corpora_router)
 app.include_router(documents_router)
 app.include_router(query_router)

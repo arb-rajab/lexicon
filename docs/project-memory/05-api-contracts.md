@@ -17,34 +17,46 @@ general one available.
 
 ## Authentication and authorisation model
 
-Instance-level authentication (who may access a deployment at all) is an
-operator/deployment concern, not designed in this session — see
-`02-requirements.md`'s Roles and permissions matrix note and
-`08-deployment-and-operations.md` (not yet written). This document assumes
-a single authenticated session type per the two functional roles
-identified in `02-requirements.md` (corpus owner, knowledge worker) and
-does not invent a specific auth mechanism (session cookie vs. bearer token)
-ahead of that operational decision. Every endpoint below requires an
-authenticated request; there is no unauthenticated/public surface in v1
-(unlike `privacy-forge`'s public DSAR portal — this product has no
-equivalent external, unauthenticated actor per its stakeholder model).
+**Real instance-level authentication, per ADR-0005.** Every endpoint below
+requires an authenticated request; there is no unauthenticated/public
+surface in v1 (unlike `privacy-forge`'s public DSAR portal — this product
+has no equivalent external, unauthenticated actor per its stakeholder
+model). A caller authenticates by registering (`POST /api/v1/auth/register`)
+or logging in (`POST /api/v1/auth/login`) with a username/password, and
+receives a signed session token (JWT) to present as
+`Authorization: Bearer <token>` on every subsequent request. This is a
+real, cryptographically verified identity boundary — not a trusted-header
+convention a caller can spoof.
 
-**T-04 enforcement, added this session (`06-security-threat-model.md`):**
-this API had grown into a genuinely multi-corpus surface (`POST`/`GET
-/api/v1/corpora` operate over a collection, not a single per-deployment
-corpus) with **zero** authorisation between a caller and a `corpus_id` —
-any authenticated-looking request could read, query, or modify any
-corpus. Closed by `lexicon.api.auth`/`lexicon.api.ownership`: every
-request must carry an `X-User-Id` header (missing/blank → `401`), and
-every `{corpus_id}`-scoped endpoint checks that header's value against
-`CORPUS.owner_id`, set from the same header at corpus-creation time
-(mismatch → `403`; nonexistent corpus → `404`). This still does not invent
-instance-level authentication — `X-User-Id` is trusted the way a
-reverse-proxy/gateway-injected identity header would be in production
-(see `lexicon/api/auth.py`'s module docstring); a real deployment
-terminates and verifies it at that boundary before traffic reaches this
-service. `GET /api/v1/corpora` is now scoped to the caller's own
-corpora, not the whole deployment's.
+**History, for context on why this looks different from earlier sessions'
+documentation of this section:** T-04's ownership enforcement
+(`lexicon.api.ownership`) was built, correctly, against a caller identity
+sourced from a client-supplied `X-User-Id` header, on the stated assumption
+that a real deployment would terminate and verify that header at an
+external, trusted reverse-proxy/gateway boundary before traffic reached
+this service. That gateway was never built, in dev or in prod compose —
+this application has always been the network edge in every deployable form
+of this stack. The result was a full, live-reachable impersonation
+vulnerability (any caller could set `X-User-Id: <anyone>` and be treated as
+that person by every ownership check). **ADR-0005 closes this**: `X-User-Id`
+is no longer read anywhere in the application. `GET /api/v1/corpora` remains
+scoped to the caller's own corpora, exactly as before — only the source of
+the caller's identity changed, from an unverified header to a verified
+token's `sub` claim.
+
+### Auth endpoints
+
+| Method | Path | Purpose | Request | Response |
+|---|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | Create an account and receive a session token | `{ "username": string, "password": string }` | `201` `{ "access_token": string, "token_type": "bearer", "username": string }`; `409` `username_taken` |
+| `POST` | `/api/v1/auth/login` | Authenticate and receive a session token | `{ "username": string, "password": string }` | `200` `{ "access_token", "token_type", "username" }`; `401` `invalid_credentials` (identical for unknown username or wrong password — no username enumeration); `429` `rate_limited` (T-12) with `Retry-After` |
+| `GET` | `/api/v1/auth/me` | Confirm the caller's own identity | — (bearer token) | `200` `{ "username": string }` |
+
+Every other endpoint below requires `Authorization: Bearer <token>`;
+missing or invalid (unsigned, forged, expired, wrong-algorithm) → `401`
+`unauthenticated`. `{corpus_id}`-scoped endpoints additionally check the
+verified caller against `CORPUS.owner_id` (mismatch → `403`; nonexistent
+corpus → `404`) exactly as T-04 originally specified.
 
 ## Endpoints / schema summary
 

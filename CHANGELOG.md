@@ -7,6 +7,22 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Security
+- **Closed a full, live-reachable impersonation vulnerability (ADR-0005):**
+  the backend previously trusted whatever `X-User-Id` value a caller sent
+  directly, on the assumption that a real deployment would terminate and
+  verify that header at an external gateway — no such gateway was ever
+  built, in dev or prod compose, so any caller could impersonate any
+  identity with a single header. Replaced with real password
+  authentication (`POST /api/v1/auth/register`/`/login`) issuing signed,
+  verified session tokens (`lexicon.security.tokens`); `X-User-Id` is no
+  longer read anywhere in the application. T-04's ownership-scoping logic
+  is unchanged — only the source of the caller identity it authorises
+  against changed, from an unverified header to a verified token. See
+  `docs/adr/ADR-0005-instance-level-authentication.md` and
+  `backend/tests/test_auth.py` (reproduces the pre-fix vulnerability and
+  proves it now fails closed). The frontend's `localStorage`-based identity
+  switcher is replaced with real sign-in (an `httpOnly` session cookie,
+  never exposed to page JavaScript).
 - **Closed a real, zero-authorisation IDOR gap across the entire
   multi-corpus API (T-04)**: every `{corpus_id}`-scoped endpoint now
   independently authorises the caller against that specific corpus

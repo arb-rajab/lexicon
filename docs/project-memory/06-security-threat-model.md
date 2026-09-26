@@ -96,7 +96,7 @@ avoid — see "Indirect prompt injection via ingested documents" below.
 | T-09 | B3/B4 LLM provider (external) | Retrieved passage content (potentially confidential document content) is sent to a third-party LLM API for both calls — a provider-side data exposure risk inherent to the RAG architecture itself | Information Disclosure | Low/Med | Accepted risk — inherent to any RAG design; provider selection (`03-architecture.md`, Anthropic Claude) already made on stated grounds; not an app-layer-mitigable threat beyond provider choice. See Accepted risks | N/A — accepted, not a control gap |
 | T-10 | B3/B4 LLM provider (external) | Prompt-caching cross-contamination — cached passage content (adopted for cost control, `03-architecture.md`) served across a different corpus's or caller's request context | Information Disclosure | Low/Med | Must be explicitly confirmed, not assumed: verify the provider's prompt-caching scope is bound to the calling API key/request context and is not a shared cross-tenant cache, before relying on it in production | Provider documentation review + integration test asserting cache-key scoping; Session 4 |
 | T-11 | B3 Generation call | Cross-corpus content exfiltration via generation (an injected instruction attempts to make the generator include content it should not have access to) | Information Disclosure | Low/High, structurally mitigated | Prevented by construction, not by asking the LLM to refuse: retrieval itself is corpus-scoped (FR-014) — chunks from another corpus are never fetched into the generation context in the first place, so there is nothing for a generation-layer injection to exfiltrate across corpora regardless of how it behaves | FR-014's existing retrieval-isolation feature test already covers this; no new test needed, cited here so the reasoning is explicit rather than assumed |
-| T-12 | B2/instance Session/credential handling | Session hijacking, credential stuffing, or brute force against whatever instance-level authentication mechanism is eventually chosen | Spoofing | Not yet ratable — mechanism undesigned | Carried forward from Session 2 as a standing requirement, not newly resolved here: whatever auth mechanism `08-deployment-and-operations.md` specifies must include standard session hardening (`HttpOnly`/`Secure`/`SameSite` cookies or equivalent bearer-token hardening) and rate-limited login, matching `privacy-forge`'s T-11/T-13 baseline | Cannot be tested until the mechanism itself is designed and implemented — named as a gate on that future work, not fabricated here |
+| T-12 | B2/instance Session/credential handling | Session hijacking, credential stuffing, or brute force against the instance-level authentication mechanism | Spoofing | Was Critical (full unauthenticated impersonation) while `X-User-Id` was trusted directly with no verifying gateway ever deployed — **now Med/Low** | **Implemented (ADR-0005):** real password login (`lexicon.api.auth_routes`) issuing signed, verified session tokens (`lexicon.security.tokens`); `lexicon.api.auth.get_caller` no longer reads `X-User-Id` at all. Passwords hashed with salted PBKDF2-HMAC-SHA256 (600,000 iterations, OWASP 2023 minimum), never stored or logged in plaintext. Rate-limited login (`lexicon.api.rate_limit.enforce_login_rate_limit`, Redis-backed, per-username). Residual gap named honestly in ADR-0005: no TLS in this stack yet (same accepted scope as the rest of this document), so credentials travel as plaintext-over-HTTP within the local/compose network today — a hard revisit trigger if this stack is ever exposed beyond localhost | **Closed, this session:** `backend/tests/test_auth.py` — reproduces the pre-fix vulnerability (a bare `X-User-Id` header, no credential, previously sufficient for full impersonation) and proves it now fails closed; also covers forged signatures, `alg:none` algorithm-confusion, expired tokens, wrong-claim-type tokens, and the login rate limit. `test_corpus_authorization.py`'s `test_forged_x_user_id_header_no_longer_grants_access` proves the same closure at the ownership-boundary level |
 
 ## Indirect prompt injection via ingested documents
 
@@ -378,30 +378,36 @@ finding's entry in the STRIDE table.
 Summarised from `05-api-contracts.md` and `02-requirements.md`, with this
 session's additions:
 
-- Instance-level authentication mechanics (who may access a deployment at
-  all) remain an explicit operator/deployment concern, deferred to
-  `08-deployment-and-operations.md` — **re-confirmed, not silently
-  dropped**, per this session's definition of done. This is not a gap in
-  this threat model; it is a scope boundary Session 2 stated and this
-  session did not need to reverse.
-- **T-04, implemented in this later session:** every `{corpus_id}`-scoped
-  endpoint independently authorises the caller against that specific
-  corpus (`lexicon.api.ownership`), not merely checks that they are
-  authenticated at all. This landed ahead of the instance-level
-  authentication mechanism it was originally stated as a requirement on
-  ("whatever mechanism Session 4/ops eventually builds") — a real gap had
-  opened between this document naming T-04 and the API actually growing
-  into a genuinely multi-corpus surface with zero enforcement of it, so
-  ownership scoping was built now, against a trusted-header caller
-  identity (`X-User-Id`) rather than waiting on that still-undesigned
-  mechanism. See `05-api-contracts.md`'s Authentication and authorisation
-  model section for the precise contract and why this doesn't itself
-  constitute the instance-level authentication decision Session 2 deferred.
-- **New this session (T-12):** whatever session/credential mechanism is
-  chosen must include standard hardening (secure cookie flags or
-  equivalent bearer-token handling, rate-limited login) — carried forward
-  as a requirement, not designed here, since the mechanism itself doesn't
-  exist yet.
+- **Instance-level authentication is now real (ADR-0005), closing the gap
+  this section previously deferred.** The deferral itself turned out to be
+  the vulnerability: `X-User-Id` was trusted on the stated assumption that a
+  real deployment would terminate/verify it at an external gateway, but no
+  such gateway was ever built in either `docker-compose.yml` or
+  `docker-compose.prod.yml` — this application has always been the network
+  edge in every deployable form of this stack, so the assumption was false
+  for the entire time it was relied upon. ADR-0005 resolves this: real
+  password login issuing signed, verified session tokens
+  (`lexicon.security.tokens`), with `X-User-Id` no longer read anywhere in
+  the application. See `05-api-contracts.md`'s Authentication and
+  authorisation model section for the contract and ADR-0005 for the full
+  options-considered reasoning (in particular, why a real OIDC gateway —
+  the "do it properly this time" version of the original assumption — was
+  evaluated and rejected as disproportionate to this project's actual,
+  current deployment shape, not skipped for convenience).
+- **T-04 is unchanged by this decision.** Every `{corpus_id}`-scoped
+  endpoint still independently authorises the caller against that specific
+  corpus (`lexicon.api.ownership`) — only the source of the caller identity
+  it checks changed, from an unverified header to a verified token's `sub`
+  claim. The ownership-scoping logic itself was already correct and was not
+  touched.
+- **T-12, implemented this session:** real password authentication with
+  salted/hashed storage (PBKDF2-HMAC-SHA256, 600,000 iterations), signed
+  session tokens with a pinned verification algorithm (defeats `alg:none`-
+  style confusion attacks), and rate-limited login
+  (`lexicon.api.rate_limit.enforce_login_rate_limit`). See the STRIDE table
+  above and ADR-0005 for the full design and the honestly-named residual
+  gap (no TLS in this stack yet, so credentials travel over the same
+  plaintext-over-local-network path everything else already does).
 - The two functional roles (corpus owner, knowledge worker) and what each
   can/cannot do are unchanged from `02-requirements.md`'s Roles and
   permissions matrix; this document adds the *enforcement* requirement
@@ -491,7 +497,7 @@ ever configured, not after. Real controls:
 | `injection_suspected`'s false-negative rate is now measured for `StubLLMClient` specifically (Session 6: 4/14 attack cases missed — phrasings deliberately chosen to avoid its ten hardcoded markers) and remains permanently unmeasured for any real model (ADR-0004) | The alternative (pre-ingestion content filtering) is rejected as unreliable and prone to corrupting legitimate document content (Option B, ADR-0003); fail-closed-on-ambiguity and the enforced auto-fail override (ADR-0003 item 3, now verified 0 violations across Session 6's corpus, any tier) are the accepted second and third layers rather than a claim that detection alone is sufficient — a missed detection means no defense-in-depth signal fired, not that the pipeline answered anyway | Session 6's stub-tier result is an expected, already-documented limitation of the placeholder heuristic (ADR-0003's own Trade-offs section), not the "documented, measured result" of a real-model gap ADR-0003's revisit trigger names — that trigger remains open, gated on a real model, per ADR-0004 |
 | Document content honesty (a corpus owner uploading factually false but non-instructional content) is out of scope — this system defends against injected *instructions*, not against a corpus owner choosing to include false *facts* | The product's grounding promise is "the answer is supported by what's in the corpus," not "what's in the corpus is true" — the same reasoning `02-requirements.md`'s data classification already applies ("if an operator's corpus contains [sensitive/inaccurate content], that operator's own governance obligations apply") | If the product's stated promise to end users ever implies factual accuracy of source content, not merely grounding in it — a scope change, not a security gap, if it happens |
 | Provider-side data exposure (T-09) — retrieved passage content is necessarily sent to a third-party LLM API for both calls | Inherent to any RAG architecture; provider choice (`03-architecture.md`) is the only app-layer lever available, and was already made on stated grounds | If a provider incident report ever surfaces evidence of cross-tenant prompt/data leakage |
-| Instance-level authentication mechanics remain undesigned (T-12, carried forward from Session 2) | Deliberately deferred as an operator/deployment concern per the MVP boundary (`01-scope-and-non-goals.md`); this session adds requirements (T-04, T-12) on the eventual mechanism rather than inventing one prematurely | Must be resolved before Session 4 implements any endpoint that depends on it, and definitely before any multi-corpus-per-instance production deployment, since T-04's cross-corpus authorisation check has nothing to enforce without it |
+No TLS exists in this stack yet (T-12/ADR-0005 residual gap) — real password credentials now travel the same plaintext-over-local-network path query text and document content already did | `08-deployment-and-operations.md` already deliberately descoped TLS on the grounds that no session has ever committed to exposing this stack beyond localhost; ADR-0005 accepted this rather than bundling a TLS decision into an auth-boundary fix, but named it explicitly rather than silently inheriting the old document's reasoning for a materially different kind of data (credentials, not just query content) | If this stack is ever deployed anywhere reachable beyond localhost, TLS becomes a hard prerequisite, not an optional hardening step — this is now a credential-driven trigger, stronger than `08-deployment-and-operations.md`'s original one |
 | The embedding-inversion finding (T-08) that RBAC scoping closes this threat depends on the corpus-owner role's access to `fusion_score`/rank data staying coupled to that same role's plaintext document access | The finding's entire basis is that this role gains no *new* information from the scores it doesn't already have from the documents themselves — not that access control alone is sufficient in general | If a lower-privileged role (e.g. a future analytics, monitoring, or reporting role) is ever granted access to the query-log detail endpoint without also being granted plaintext document access, the two grants are no longer coupled and this threat must be re-evaluated from scratch, not assumed still closed |
 
 ## Responsible disclosure

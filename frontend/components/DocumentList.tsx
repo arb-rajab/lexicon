@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import * as api from "@/lib/api-client";
-import { useIdentity } from "@/lib/identity";
 import type { Document as LexiconDocument } from "@/lib/types";
 
 import { ApiErrorMessage } from "./ApiErrorMessage";
@@ -17,7 +16,6 @@ export function DocumentList({
   documents: LexiconDocument[];
   onChanged: () => void;
 }) {
-  const { userId } = useIdentity();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
 
@@ -25,7 +23,7 @@ export function DocumentList({
     setDeletingId(documentId);
     setError(null);
     try {
-      await api.deleteDocument(userId, corpusId, documentId);
+      await api.deleteDocument(corpusId, documentId);
       onChanged();
     } catch (err) {
       setError(err);

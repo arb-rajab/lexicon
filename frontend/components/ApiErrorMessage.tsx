@@ -1,7 +1,7 @@
 import { ApiError } from "@/lib/api-client";
 
 const FRIENDLY_MESSAGE: Record<string, string> = {
-  unauthenticated: "You need an identity set before doing that.",
+  unauthenticated: "You need to sign in before doing that.",
   forbidden: "You don't have access to this corpus.",
   not_found: "That resource doesn't exist.",
   file_too_large: "That file is larger than the upload limit.",

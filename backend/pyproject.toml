@@ -16,6 +16,11 @@ dependencies = [
     "fastembed>=0.4",
     "anthropic>=1.0",
     "python-multipart>=0.0.12",
+    # ADR-0005 — instance-level authentication (real login + signed session
+    # tokens, replacing the trusted-X-User-Id-header model). HS256 JWTs
+    # only; no asymmetric-key/JWKS surface is needed for a single-process
+    # issuer-and-verifier deployment shape.
+    "pyjwt>=2.9",
 ]
 
 [project.optional-dependencies]
