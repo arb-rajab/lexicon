@@ -32,6 +32,10 @@ updates:
       # ("does not support TS 7.0"), so lint fails. Revisit once it supports TS >= 7.1.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # eslint-config-next 15/16 peer eslint <= 9, so an ESLint 10 bump fails
+      # `npm ci` (ERESOLVE). Move eslint with eslint-config-next once it supports 10.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
   # Backend Dockerfile base image
   - package-ecosystem: docker
     directory: "/backend"
