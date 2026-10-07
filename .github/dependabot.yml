@@ -36,6 +36,11 @@ updates:
       # `npm ci` (ERESOLVE). Move eslint with eslint-config-next once it supports 10.
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+      # eslint-config-next 16 is flat-config only (eslint.config.mjs must stop using
+      # FlatCompat) and enables the react-hooks v7 rules, which flag 4 existing
+      # components (set-state-in-effect). Migrate deliberately, not via a bump.
+      - dependency-name: "eslint-config-next"
+        update-types: ["version-update:semver-major"]
   # Backend Dockerfile base image
   - package-ecosystem: docker
     directory: "/backend"
