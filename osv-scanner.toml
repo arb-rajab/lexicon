@@ -1,0 +1,22 @@
+# osv-scanner configuration for the "Dependency vulnerability scan" CI job
+# (.github/workflows/ci.yml).
+#
+# Every entry here is a dated exception, not a permanent suppression: once
+# `ignoreUntil` passes, the finding fails the scan again and a human has to
+# either renew the entry (re-confirming the reason still holds) or delete it
+# (because a fix shipped). Entries are by advisory ID, so any NEW advisory
+# against the same package still fails the scan.
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2026-11-15
+reason = """
+Stack-exhaustion DoS in braces (deeply nested brace patterns exhaust the call
+stack), high severity (CVSS 8.7). braces 3.0.3 is the latest release and the
+advisory lists no patched version, so there is nothing to upgrade to. It is
+reached only as a dev dependency (frontend/package-lock.json, "dev": true)
+through the lint/build/test toolchain, which runs on developer machines and CI
+against repo-controlled glob patterns; it is not part of the production bundle.
+Re-check before the expiry date: renew if still unfixed upstream, remove this
+entry the moment a patched release ships.
+"""
