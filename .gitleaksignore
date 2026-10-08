@@ -1,0 +1,6 @@
+# Known gitleaks false positives, one fingerprint per finding (commit:file:rule:line).
+# CI only scans new commits, but a full-history scan reports these.
+# Each entry skips that one finding only; anything new still fails the scan.
+
+# The public jwt.io sample token ("John Doe", HS256) quoted in a retrieval-spike corpus doc.
+ce4b473916bd40f1bf5c688d631336a7ca4c6d24:docs/spikes/session1-hybrid-retrieval/corpus/oauth2-jwt.md:jwt:16
