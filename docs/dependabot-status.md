@@ -16,7 +16,7 @@ _Last updated: 2026-10-08. Maintained during the Dependabot clean-up pass; updat
 
 ## Time-limited exemptions
 
-- `osv-scanner.toml` (proposed, awaiting owner approval): dev-only `braces` 3.0.3 (GHSA-vfj7-8cjw-p6xm, no patched release), `ignoreUntil` 2026-11-15.
+- `osv-scanner.toml` (approved by the repo owner 2026-10-08, merged in #30): dev-only `braces` 3.0.3 (GHSA-vfj7-8cjw-p6xm, no patched release), `ignoreUntil` 2026-11-15.
 
 ## Notes
 
