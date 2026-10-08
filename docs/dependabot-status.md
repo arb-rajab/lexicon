@@ -21,7 +21,7 @@ _Last updated: 2026-10-08. Maintained during the Dependabot clean-up pass; updat
 ## Notes
 
 - `docker/Dockerfile.prod` directories are not covered by a `docker` entry; this is a known, deliberately deferred gap.
-- No osv-scanner config in this repo.
+- No osv-scanner config in this repo, so nothing in CI gates on the OSV database. A manual OSV query of `frontend/package-lock.json` (2026-10-08) found `brace-expansion` 1.1.18 / 5.0.9 (dev-only, three advisories, two HIGH: GHSA-6j4f-fj2g-mc7p, GHSA-qhr7-859c-m2p7, plus GHSA-q2hr-2g5m-vwhr); the lockfile now has 1.1.21 / 5.0.12. The only remaining finding is dev-only `braces` 3.0.3 (GHSA-vfj7-8cjw-p6xm), which has no patched release.
 
 ## Deferred (not re-raised each pass)
 
