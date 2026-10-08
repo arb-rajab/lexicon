@@ -4,10 +4,10 @@ _Last updated: 2026-10-08. Maintained during the Dependabot clean-up pass; updat
 
 ## Configuration
 
-- Ecosystems covered: pip (`/backend`, `/docs/spikes/session1-hybrid-retrieval`), npm (`/frontend`), docker (`/backend`, `/frontend`), github-actions (`/`).
+- Ecosystems covered: pip (`/backend`, `/docs/spikes/session1-hybrid-retrieval`), npm (`/frontend`), docker (`/backend`, `/frontend`), github-actions (`/`), docker-compose (`/`).
 - Grouping: `minor-and-patch` for every ecosystem (open-PR limit 5 each).
 - Schedule: weekly.
-- Ignore rules: `typescript` majors (typescript-eslint does not load on TS 7); `eslint` majors (eslint-config-next peers eslint <= 9); `eslint-config-next` majors (16 is flat-config only and enables react-hooks v7 rules that flag existing components).
+- Ignore rules: `typescript` majors (typescript-eslint does not load on TS 7); `eslint` majors (eslint-config-next peers eslint <= 9); `eslint-config-next` majors (16 is flat-config only and enables react-hooks v7 rules that flag existing components); docker-compose image majors (stateful services need a deliberate migration).
 
 ## State at last update
 
