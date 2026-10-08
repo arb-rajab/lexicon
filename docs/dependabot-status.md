@@ -26,6 +26,7 @@ _Last updated: 2026-10-08. Maintained during the Dependabot clean-up pass; updat
 
 - The `dependency-scan` job deliberately scans only `frontend/package-lock.json`. `docs/spikes/session1-hybrid-retrieval/requirements.txt` (an experiment, not deployed, no lockfile) was tried and left out: osv-scanner resolves its transitive tree and reports `anyio` 4.9.0 (PYSEC-2026-4024/4025, up to CVSS 9.3, fixed in 4.14.2) and `idna` 3.9.0 (PYSEC-2026-215, fixed in 3.15) via `fastembed`. The spike's `pip` Dependabot entry still covers it; add it to the scan once it has a lockfile or constraints.
 - `.gitleaksignore` (added 2026-10-08): one fingerprint, the public jwt.io sample token in `docs/spikes/session1-hybrid-retrieval/corpus/oauth2-jwt.md` (commit ce4b4739). CI's gitleaks job only scans new commits, so it never failed; a full-history scan did.
+- Every workflow declares a top-level `permissions: contents: read` (added 2026-10-08, rescan cycle 3). Jobs that need more, such as CodeQL's `security-events: write`, declare it at job level.
 - Merge policy (deliberate choice by the repo owner, 2026-10-08): every PR, major-version dependency bumps included, is merged as soon as all of its required checks are green, confirmed per PR. This repo is a code showcase with no business or sensitive dependency, so green checks are the only gate. Red, pending or conflicted PRs are fixed or closed instead.
 
 ## Deferred (not re-raised each pass)
