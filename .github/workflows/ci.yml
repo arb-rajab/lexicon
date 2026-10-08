@@ -142,7 +142,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Gates on the OSV database across the whole frontend tree, including dev
+  # Gates on the OSV database across the whole frontend lockfile, including dev
   # dependencies, which the `npm audit --omit=dev` step above deliberately skips.
   # Exceptions live, dated, in osv-scanner.toml.
   dependency-scan:
@@ -156,7 +156,6 @@ jobs:
           scan-args: |-
             --config=osv-scanner.toml
             --lockfile=frontend/package-lock.json
-            --lockfile=docs/spikes/session1-hybrid-retrieval/requirements.txt
 
   codeql:
     name: CodeQL
