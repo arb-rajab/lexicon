@@ -24,9 +24,15 @@ jobs:
     # (12-session-handoff.md's Session 4 ground rule). Migration 0002
     # creates the restricted app role itself, so only the admin/superuser
     # role needs provisioning here.
+    # Service images come from mirror.gcr.io (Google's cache of popular Docker
+    # Hub images: no pull-rate limit, no Docker Hub auth outage). Service
+    # containers start before any step, so they cannot use the daemon-level
+    # mirror (with Docker Hub fallback) that other jobs set up. The cache only
+    # holds frequently pulled tags: if a new tag 404s there, use the plain
+    # Docker Hub name for that service.
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: mirror.gcr.io/pgvector/pgvector:pg16
         env:
           POSTGRES_USER: lexicon
           POSTGRES_PASSWORD: lexicon
@@ -45,7 +51,7 @@ jobs:
       # Host port matches docker-compose.yml's dev port (6380) so
       # config.py's REDIS_URL default resolves here with no override.
       redis:
-        image: redis:7-alpine
+        image: mirror.gcr.io/library/redis:7-alpine
         ports:
           - 6380:6379
         options: >-
